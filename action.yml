@@ -1,0 +1,70 @@
+---
+name: gomod-go-version-updater-action
+description: gomod-go-version-updater-action
+inputs:
+  description:
+    description: |
+      The description of the GitHub project.
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - name: display the gh cli version
+      run: gh --version
+      shell: bash
+    - uses: actions/checkout@v4.1.1
+    - name: set branch name
+      run: |
+        echo "GOMOD_GO_VERSION_UPDATER_ACTION_BRANCH=update-go-version-in-go-mod-file" >> $GITHUB_ENV
+      shell: bash
+    - uses: actions/setup-python@v5
+      with:
+        python-version: 3.9.18
+    - name: Install dependencies
+      run: |
+        pip install pytest pytest-cov requests
+      shell: bash
+    - name: update go version and push branch
+      run: |
+        git fetch -p -P
+        git checkout -b ${GOMOD_GO_VERSION_UPDATER_ACTION_BRANCH}
+
+        python --version
+        python3 --version
+
+        echo "cp1"
+        export GOMOD_GO_VERSION_UPDATER_ACTION_OUTPUT=$(python ${{ github.action_path }}/main.py 2>&1 | sed "s|.*\(bump.*\)|\1|")
+
+        echo "cp2"
+        echo "GOMOD_GO_VERSION_UPDATER_ACTION_OUTPUT: ${GOMOD_GO_VERSION_UPDATER_ACTION_OUTPUT}"
+
+        echo "cp3"
+        export GOMOD_GO_VERSION_UPDATER_ACTION_MESSAGE="build(deps): ${GOMOD_GO_VERSION_UPDATER_ACTION_OUTPUT}"
+        echo "GOMOD_GO_VERSION_UPDATER_ACTION_MESSAGE: ${GOMOD_GO_VERSION_UPDATER_ACTION_MESSAGE}"
+
+        echo "cp4"
+        if [ -n "$(git status --porcelain)" ]; then echo "There are uncommitted changes."; else echo "No changes to commit." && exit 0; fi
+        echo "cp5"
+
+        echo "git add..."
+        git add go.mod
+
+        echo "git config user..."
+        git config user.name github-actions[bot]
+        git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+
+        echo "git commit..."
+        if ! git commit -m "${GOMOD_GO_VERSION_UPDATER_ACTION_MESSAGE}"; then git commit --amend --no-edit; fi
+
+        echo "git push..."
+        git push origin ${GOMOD_GO_VERSION_UPDATER_ACTION_BRANCH} -f
+
+        echo "create pr..."
+        if ! gh pr create \
+          --base main \
+          --head "${GOMOD_GO_VERSION_UPDATER_ACTION_BRANCH}" \
+          --title "${GOMOD_GO_VERSION_UPDATER_ACTION_MESSAGE}" \
+          --body "${GOMOD_GO_VERSION_UPDATER_ACTION_MESSAGE}"; then echo "pr exists already"; fi
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
