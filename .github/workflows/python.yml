@@ -1,0 +1,16 @@
+name: python
+'on': push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.1.1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.9.18
+      - name: Install dependencies
+        run: |
+          pip install pytest pytest-cov requests
+      - name: Run tests
+        run: |
+          pytest --cov=main test.py --verbose --capture=no --cov-report term-missing
