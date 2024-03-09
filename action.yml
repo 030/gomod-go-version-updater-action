@@ -1,0 +1,38 @@
+---
+name: gomod-go-version-updater-action
+description: gomod-go-version-updater-action
+inputs:
+  description:
+    description: |
+      The description of the GitHub project.
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - name: display the gh cli version
+      run: gh --version
+      shell: bash
+    - uses: actions/checkout@v4.1.1
+    - name: set branch name
+      run: |
+        echo "GOMOD_GO_VERSION_UPDATER_ACTION_BRANCH=update-go-version-in-go-mod-file" >> $GITHUB_ENV
+        echo "GOMOD_GO_VERSION_UPDATER_ACTION_MESSAGE=build(deps): bump golang version in go.mod file" >> $GITHUB_ENV
+      shell: bash
+    - name: update go version and push branch
+      run: |
+        git fetch -p -P
+        git checkout -b ${GOMOD_GO_VERSION_UPDATER_ACTION_BRANCH}
+        python3 ${{ github.action_path }}/main.py
+        git add go.mod
+        git config user.name github-actions[bot]
+        git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+        git commit -m "${GOMOD_GO_VERSION_UPDATER_ACTION_MESSAGE}"
+        git push origin ${GOMOD_GO_VERSION_UPDATER_ACTION_BRANCH}
+        gh pr create \
+          --base main \
+          --head "${GOMOD_GO_VERSION_UPDATER_ACTION_BRANCH}" \
+          --title "${GOMOD_GO_VERSION_UPDATER_ACTION_MESSAGE}" \
+          --body "${GOMOD_GO_VERSION_UPDATER_ACTION_MESSAGE}"
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
