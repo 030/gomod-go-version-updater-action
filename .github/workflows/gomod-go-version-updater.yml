@@ -1,0 +1,12 @@
+---
+name: gomod-go-version-updater-action
+'on': push
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+jobs:
+  gomod-go-version-updater-action:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: 030/gomod-go-version-updater-action@2-action
