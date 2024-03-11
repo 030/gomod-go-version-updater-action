@@ -2,7 +2,8 @@
 name: gomod-go-version-updater-action
 description: gomod-go-version-updater-action
 inputs:
-  description:
+  workflow_file:
+    default: golang.yml
     description: |
       The description of the GitHub project.
     required: true
@@ -13,6 +14,8 @@ runs:
       run: gh --version
       shell: bash
     - uses: actions/checkout@v4.1.1
+      with:
+        ref: main
     - name: set branch name
       run: |
         echo "GOMOD_GO_VERSION_UPDATER_ACTION_BRANCH=update-go-version-in-go-mod-file" >> $GITHUB_ENV
@@ -57,8 +60,28 @@ runs:
         if ! gh pr create \
           --base main \
           --head "${GOMOD_GO_VERSION_UPDATER_ACTION_BRANCH}" \
-          --title "${GOMOD_GO_VERSION_UPDATER_ACTION_MESSAGE}" \
-          --body "${GOMOD_GO_VERSION_UPDATER_ACTION_MESSAGE}"; then echo "pr exists already"; fi
+          --fill \
+          --label dependencies \
+          --label go \
+          --label gomod-go-version-updater; then echo "pr exists already"; fi
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+    - uses: actions/setup-go@v5.0.0
+      with:
+        go-version-file: 'go.mod'
+        cache: false
+    - name: go mod tidy
+      run: |
+        go mod tidy
+      shell: bash
+    - name: commit and force push if needed
+      run: |
+        if [ -n "$(git status --porcelain)" ]; then echo "There are uncommitted changes."; else echo "No changes to commit." && exit 0; fi
+
+        git add .
+        git commit --amend --no-edit
+        git push origin ${GOMOD_GO_VERSION_UPDATER_ACTION_BRANCH} -f
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}

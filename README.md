@@ -26,6 +26,16 @@ jobs:
       - uses: 030/gomod-go-version-updater-action@v0.1.0
 ```
 
+ensure that action that should be run once go has been updated contains:
+
+```bash
+'on':
+  # required by gomod-go-version-updater to trigger this action once pr has
+  # been reviewed
+  pull_request_review:
+    types: [submitted]
+```
+
 ## Test
 
 ```bash
