@@ -18,6 +18,7 @@ runs:
         ref: main
     - name: set branch name
       run: |
+        echo "GOMOD_GO_VERSION_UPDATER_LABEL=gomod-go-version-updater" >> $GITHUB_ENV
         echo "GOMOD_GO_VERSION_UPDATER_ACTION_BRANCH=update-go-version-in-go-mod-file" >> $GITHUB_ENV
       shell: bash
     - uses: actions/setup-python@v5
@@ -27,6 +28,12 @@ runs:
       run: |
         pip install pytest pytest-cov requests
       shell: bash
+    - name: Create label
+      run: |
+        gh label create ${GOMOD_GO_VERSION_UPDATER_LABEL} --color "#F50BAB" --description "Pull requests that update Go version in the go.mod file" --force
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
     - name: update go version and push branch
       run: |
         git fetch -p -P
@@ -63,7 +70,7 @@ runs:
           --fill \
           --label dependencies \
           --label go \
-          --label gomod-go-version-updater; then echo "pr exists already"; fi
+          --label ${GOMOD_GO_VERSION_UPDATER_LABEL}; then echo "pr exists already"; fi
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
