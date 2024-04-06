@@ -27,13 +27,11 @@ def determine_whether_go_version_in_go_mod_file_contains_patch_version() -> (str
                 logging.debug(f"patch found in go.mod: {patch}")
             else:
                 raise ValueError(f"no golang version defined in file: {GO_MOD_FILE}")
+            version = f"{major}.{minor}"
             if patch:
                 version = f"{major}.{minor}.{patch}"
-                logging.debug(f"go version consists of major, minor and patch: {version}")
                 patch = True
-            else:
-                version = f"{major}.{minor}"
-                logging.debug(f"go version consists of major and minor: {version}")
+            logging.debug(f"go version: {version}. Patch: {patch}")
     except FileNotFoundError:
         raise ValueError(f"File not found: {GO_MOD_FILE}")
     logging.debug(f"current golang version that is defined in the go.mod: {version}")
@@ -88,10 +86,9 @@ def main():
     configure_logging()
     latest_major, latest_minor, latest_patch = get_latest_go_version()
     current_version, patch = determine_whether_go_version_in_go_mod_file_contains_patch_version()
+    regex_replace_go_version_in_go_mod_file(current_version, f"{latest_major}.{latest_minor}")
     if patch:
         regex_replace_go_version_in_go_mod_file(current_version, f"{latest_major}.{latest_minor}.{latest_patch}")
-    else:
-        regex_replace_go_version_in_go_mod_file(current_version, f"{latest_major}.{latest_minor}")
 
 
 if __name__ == "__main__":
