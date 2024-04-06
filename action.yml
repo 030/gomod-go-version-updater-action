@@ -63,14 +63,19 @@ runs:
         echo "git push..."
         git push origin ${GOMOD_GO_VERSION_UPDATER_ACTION_BRANCH} -f
 
+        if gh pr list --json title | jq -e '.[] | select(.title | test("build\\(deps\\): bump golang version in go\\.mod file from .* to .*"))'; then
+          echo "pr exists already"
+          exit 0
+        fi
+
         echo "create pr..."
-        if ! gh pr create \
+        gh pr create \
           --base main \
           --head "${GOMOD_GO_VERSION_UPDATER_ACTION_BRANCH}" \
           --fill \
           --label dependencies \
           --label go \
-          --label ${GOMOD_GO_VERSION_UPDATER_LABEL}; then echo "pr exists already"; fi
+          --label ${GOMOD_GO_VERSION_UPDATER_LABEL}
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
