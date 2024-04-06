@@ -18,22 +18,17 @@ def determine_whether_go_version_in_go_mod_file_contains_patch_version() -> (str
             major, minor, patch = "", "", ""
             content = file.read()
             go_version = re.search(r'go\s(\d+)\.(\d+)\.?(\d+)?', content)
-            if go_version:
-                major = go_version.group(1)
-                logging.debug(f"major found in go.mod: {major}")
-                minor = go_version.group(2)
-                logging.debug(f"minor found in go.mod: {minor}")
-                patch = go_version.group(3)
-                logging.debug(f"patch found in go.mod: {patch}")
-            else:
+            if go_version is None:
                 raise ValueError(f"no golang version defined in file: {GO_MOD_FILE}")
+            major, minor, patch = go_version.group(1), go_version.group(2), go_version.group(3)
+            logging.debug(f"major: {major}, minor: {minor} and patch: {patch} found in go.mod")
             version = f"{major}.{minor}"
             if patch:
                 version = f"{major}.{minor}.{patch}"
                 patch = True
             logging.debug(f"go version: {version}. Patch: {patch}")
     except FileNotFoundError:
-        raise ValueError(f"File not found: {GO_MOD_FILE}")
+        raise ValueError(f"file not found: {GO_MOD_FILE}")
     logging.debug(f"current golang version that is defined in the go.mod: {version}")
     return version, patch
 
@@ -69,9 +64,9 @@ def regex_replace_go_version_in_go_mod_file(current_version: str, replacement: s
         logging.info(
             f"bump golang version in go.mod file from {current_version} to {replacement}")
     except FileNotFoundError:
-        logging.info(f"File not found: {GO_MOD_FILE}")
+        logging.info(f"file not found: {GO_MOD_FILE}")
     except Exception as e:
-        logging.info(f"An error occurred: {e}")
+        logging.info(f"an error occurred: {e}")
 
 
 def configure_logging():

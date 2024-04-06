@@ -9,24 +9,10 @@ from main import get_latest_go_version, main, GO_MOD_FILE
 def get_golang_version_from_go_mod_file() -> str:
     try:
         with open(GO_MOD_FILE, 'r') as file:
-            # Read the entire content of the file
             file_content = file.read()
-
-            # Or read one line at a time
-            # line = file.readline()
-
-            # Or read all lines into a list
-            # lines = file.readlines()
-
-            # Process the file content or line as needed
             print(f"Content of the file:\n{file_content}")
-
             pattern = r'\d+\.\d+\.?\d+?'
-
-            # Use re.findall to extract all matches
             matches = re.findall(pattern, file_content)
-
-            # Print the extracted values
             print("Extracted values:", matches[0])
             return matches[0]
     except FileNotFoundError:
@@ -79,7 +65,7 @@ class TestUpdateGolangVersionInGoModFile(unittest.TestCase):
             main()
 
     def test_update_golang_version_if_go_mod_does_not_exist(self):
-        with pytest.raises(ValueError, match="File not found: go.mod"):
+        with pytest.raises(ValueError, match="file not found: go.mod"):
             main()
 
 
