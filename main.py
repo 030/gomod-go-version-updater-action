@@ -6,7 +6,7 @@ import sys
 
 
 GO_MOD_FILE = "go.mod"
-GO_MOD_GO_VERSION_REGEX = "go\s\d+.*"
+GO_MOD_GO_VERSION_REGEX = r"go\s\d+.*"
 GO_VERSIONS_URL = 'https://go.dev/dl/?mode=json'
 
 
@@ -42,7 +42,6 @@ def determine_whether_go_version_in_go_mod_file_contains_patch_version() -> (str
 
 def get_latest_go_version():
     major, minor, patch = "", "", ""
-
     try:
         response = requests.get(GO_VERSIONS_URL)
         response.raise_for_status()
@@ -58,10 +57,7 @@ def get_latest_go_version():
     except requests.exceptions.RequestException as e:
         logging.info(f"Error fetching data: {GO_VERSIONS_URL} {e}")
         sys.exit(1)
-    logging.debug(f"latest go major: {major}")
-    logging.debug(f"latest go minor: {minor}")
-    logging.debug(f"latest go patch: {patch}")
-
+    logging.debug(f"latest go major: {major}, minor: {minor} and {patch}")
     return major, minor, patch
 
 
