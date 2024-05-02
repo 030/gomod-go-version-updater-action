@@ -79,7 +79,7 @@ runs:
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
-    - uses: actions/setup-go@v5.0.0
+    - uses: actions/setup-go@v5.0.1
       with:
         go-version-file: 'go.mod'
         cache: false
