@@ -71,8 +71,9 @@ runs:
         echo "create pr..."
         gh pr create \
           --base main \
-          --head "${GOMOD_GO_VERSION_UPDATER_ACTION_BRANCH}" \
+          --body "${GOMOD_GO_VERSION_UPDATER_ACTION_MESSAGE}" \
           --fill \
+          --head "${GOMOD_GO_VERSION_UPDATER_ACTION_BRANCH}" \
           --label dependencies \
           --label go \
           --label ${GOMOD_GO_VERSION_UPDATER_LABEL}
