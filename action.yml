@@ -64,7 +64,10 @@ runs:
         git push origin ${GOMOD_GO_VERSION_UPDATER_ACTION_BRANCH} -f
 
         if gh pr list --json title | jq -e '.[] | select(.title | test("build\\(deps\\): bump golang version in go\\.mod file from .* to .*"))'; then
-          echo "pr exists already"
+          echo "PR exists already. Updating the 'title' and 'description'..."
+          gh pr edit ${GOMOD_GO_VERSION_UPDATER_ACTION_BRANCH} \
+            --body "${GOMOD_GO_VERSION_UPDATER_ACTION_MESSAGE}" \
+            --title "${GOMOD_GO_VERSION_UPDATER_ACTION_MESSAGE}"
           exit 0
         fi
 
