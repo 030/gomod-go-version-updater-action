@@ -5,12 +5,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4.1.7
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5.0.0
         with:
           python-version: 3.9.18
-      - name: Install dependencies
+          cache: 'pip'
+      - name: Install PIP packages defined in requirements.txt
         run: |
-          pip install pytest pytest-cov requests
+          pip install -r requirements.txt
       - name: Run tests
         run: |
           pytest --cov=main test.py --verbose --capture=no --cov-report term-missing
