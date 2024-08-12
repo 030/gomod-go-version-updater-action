@@ -2,6 +2,9 @@
 name: gomod-go-version-updater-action
 description: gomod-go-version-updater-action
 inputs:
+  github-token-for-downloading-private-go-modules:
+    description: |
+      Whether private go modules have to be downloaded.
   workflow_file:
     default: golang.yml
     description: |
@@ -71,7 +74,7 @@ runs:
           exit 0
         fi
 
-        echo "create pr..."
+        echo "creating pr..."
         gh pr create \
           --base main \
           --body "${GOMOD_GO_VERSION_UPDATER_ACTION_MESSAGE}" \
@@ -87,6 +90,10 @@ runs:
       with:
         go-version-file: 'go.mod'
         cache: false
+    - run: |
+        git config --global url.https://${{ inputs.github-token-for-downloading-private-go-modules }}@github.com/.insteadOf https://github.com/
+      shell: bash
+      if: ${{ inputs.github-token-for-downloading-private-go-modules != '' }}
     - name: go mod tidy
       run: |
         go mod tidy

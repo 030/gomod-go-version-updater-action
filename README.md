@@ -27,7 +27,7 @@ update the go version that is defined in a `go.mod` file.
      gomod-go-version-updater-action:
        runs-on: ubuntu-22.04
        steps:
-         - uses: 030/gomod-go-version-updater-action@v0.1.0
+         - uses: 030/gomod-go-version-updater-action@v0.1.3
    ```
 1. To ensure that an action is triggered for testing the Golang version update,
    add a `pull_request_review` trigger. This will cause a specific Workflow
@@ -39,6 +39,12 @@ update the go version that is defined in a `go.mod` file.
      # been reviewed
      pull_request_review:
        types: [submitted]
+   ```
+1. Optional: if private go modules have to be downloaded:
+   ```yaml
+   - uses: 030/gomod-go-version-updater-action@v0.1.3
+     with:
+       github-token-for-downloading-private-go-modules: ${{ secrets.GITHUB_TOKEN }}
    ```
 
 ## Test
