@@ -16,7 +16,7 @@ runs:
     - name: display the gh cli version
       run: gh --version
       shell: bash
-    - uses: actions/checkout@v4.1.7
+    - uses: actions/checkout@v4.2.0
       with:
         ref: main
     - name: set branch name
