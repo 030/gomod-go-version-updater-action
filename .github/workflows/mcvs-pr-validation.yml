@@ -16,4 +16,4 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4.1.7
-      - uses: schubergphilis/mcvs-pr-validation-action@v0.1.2
+      - uses: schubergphilis/mcvs-pr-validation-action@v0.2.0
