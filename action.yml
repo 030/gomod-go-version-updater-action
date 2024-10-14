@@ -5,6 +5,9 @@ inputs:
   github-token-for-downloading-private-go-modules:
     description: |
       Whether private go modules have to be downloaded.
+  gomod-go-version-updater-action-log-level:
+    description: |
+      Change the default INFO log level to: DEBUG, WARNING, ERROR or CRITICAL.
   workflow_file:
     default: golang.yml
     description: |
@@ -45,10 +48,19 @@ runs:
         python --version
         python3 --version
 
-        export GOMOD_GO_VERSION_UPDATER_ACTION_OUTPUT=$(python ${{ github.action_path }}/main.py 2>&1 | sed "s|.*\(bump.*\)|\1|")
+        if [ -n "${{ inputs.gomod-go-version-updater-action-log-level }}" ]; then
+          export GOMOD_GO_VERSION_UPDATER_ACTION_LOGGING_LEVEL=${{ inputs.gomod-go-version-updater-action-log-level }}
+          echo "GOMOD_GO_VERSION_UPDATER_ACTION_LOGGING_LEVEL: ${GOMOD_GO_VERSION_UPDATER_ACTION_LOGGING_LEVEL}"
+        fi
+        export GOMOD_GO_VERSION_UPDATER_ACTION_OUTPUT=$(python ${{ github.action_path }}/main.py 2>&1)
         echo "GOMOD_GO_VERSION_UPDATER_ACTION_OUTPUT: ${GOMOD_GO_VERSION_UPDATER_ACTION_OUTPUT}"
 
-        export GOMOD_GO_VERSION_UPDATER_ACTION_MESSAGE="build(deps): ${GOMOD_GO_VERSION_UPDATER_ACTION_OUTPUT}"
+        export GOMOD_GO_VERSION_UPDATER_ACTION_NEW_GOLANG_VERSION_OUTPUT=$(echo ${GOMOD_GO_VERSION_UPDATER_ACTION_OUTPUT} |\
+          grep "bump golang version" |\
+          sed "s|.*\(bump.*\)|\1|")
+        echo "GOMOD_GO_VERSION_UPDATER_ACTION_NEW_GOLANG_VERSION_OUTPUT: ${GOMOD_GO_VERSION_UPDATER_ACTION_NEW_GOLANG_VERSION_OUTPUT}"
+
+        export GOMOD_GO_VERSION_UPDATER_ACTION_MESSAGE="build(deps): ${GOMOD_GO_VERSION_UPDATER_ACTION_NEW_GOLANG_VERSION_OUTPUT}"
         echo "GOMOD_GO_VERSION_UPDATER_ACTION_MESSAGE: ${GOMOD_GO_VERSION_UPDATER_ACTION_MESSAGE}"
 
         if [ -n "$(git status --porcelain)" ]; then echo "There are uncommitted changes."; else echo "No changes to commit." && exit 0; fi

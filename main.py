@@ -1,4 +1,5 @@
 import logging
+import os
 import re
 import requests
 import sys
@@ -8,6 +9,9 @@ from typing import Tuple
 GO_MOD_FILE = "go.mod"
 GO_MOD_GO_VERSION_REGEX = r"go\s\d+.*"
 GO_VERSIONS_URL = "https://go.dev/dl/?mode=json"
+GOMOD_GO_VERSION_UPDATER_ACTION_LOGGING_LEVEL = os.getenv(
+    "GOMOD_GO_VERSION_UPDATER_ACTION_LOGGING_LEVEL", logging.INFO
+)
 
 
 def determine_whether_go_version_in_go_mod_file_contains_patch_version() -> (
@@ -90,16 +94,16 @@ def regex_replace_go_version_in_go_mod_file(
         logging.info(f"an error occurred: {e}")
 
 
-def configure_logging():
+def configure_logging(level=logging.INFO):
     logging.basicConfig(
-        level=logging.INFO,
+        level=level,
         format="%(asctime)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
 
 def main():
-    configure_logging()
+    configure_logging(GOMOD_GO_VERSION_UPDATER_ACTION_LOGGING_LEVEL)
     latest_major, latest_minor, latest_patch = get_latest_go_version()
     current_version, patch = (
         determine_whether_go_version_in_go_mod_file_contains_patch_version()
