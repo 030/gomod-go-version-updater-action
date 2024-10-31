@@ -14,7 +14,7 @@ inputs:
       The description of the GitHub project.
     required: true
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
     - name: display the gh cli version
       run: gh --version
@@ -24,6 +24,8 @@ runs:
         ref: main
     - name: set branch name
       run: |
+        echo "DEPENDENCIES_LABEL=dependencies" >> $GITHUB_ENV
+        echo "GO_LABEL=go" >> $GITHUB_ENV
         echo "GOMOD_GO_VERSION_UPDATER_LABEL=gomod-go-version-updater" >> $GITHUB_ENV
         echo "GOMOD_GO_VERSION_UPDATER_ACTION_BRANCH=update-go-version-in-go-mod-file" >> $GITHUB_ENV
       shell: bash
@@ -34,9 +36,39 @@ runs:
       run: |
         pip install pytest pytest-cov requests
       shell: bash
-    - name: Create label
+    - name: Create labels
       run: |
-        gh label create ${GOMOD_GO_VERSION_UPDATER_LABEL} --color "#F50BAB" --description "Pull requests that update Go version in the go.mod file" --force
+        check_label_exists() {
+          local label_name="$1"
+
+          LABEL_EXISTS=$(
+            gh label list --json name |
+            jq -r '
+              .[] |
+              select(.name == "'"$label_name"'") |
+              .name
+            '
+          )
+          if [ -z "$LABEL_EXISTS" ]; then
+            echo "label: '${label_name}' does NOT exist"
+            return 1
+          fi
+        }
+        if ! check_label_exists ${DEPENDENCIES_LABEL}; then
+          gh label create ${DEPENDENCIES_LABEL} \
+            --color "#0366d6" \
+            --description "Pull requests that update a dependency file"
+        fi
+        if ! check_label_exists ${GO_LABEL}; then
+          gh label create ${GO_LABEL} \
+            --color "#16e2e2" \
+            --description "Pull requests that update Go code"
+        fi
+        if ! check_label_exists ${GOMOD_GO_VERSION_UPDATER_LABEL}; then
+          gh label create ${GOMOD_GO_VERSION_UPDATER_LABEL} \
+            --color "#F50BAB" \
+            --description "Pull requests that update Go version in the go.mod file"
+        fi
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
@@ -92,15 +124,15 @@ runs:
           --body "${GOMOD_GO_VERSION_UPDATER_ACTION_MESSAGE}" \
           --fill \
           --head "${GOMOD_GO_VERSION_UPDATER_ACTION_BRANCH}" \
-          --label dependencies \
-          --label go \
+          --label ${DEPENDENCIES_LABEL} \
+          --label ${GO_LABEL} \
           --label ${GOMOD_GO_VERSION_UPDATER_LABEL}
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
     - uses: actions/setup-go@v5.1.0
       with:
-        go-version-file: 'go.mod'
+        go-version-file: "go.mod"
         cache: false
     - run: |
         git config --global url.https://${{ inputs.github-token-for-downloading-private-go-modules }}@github.com/.insteadOf https://github.com/
