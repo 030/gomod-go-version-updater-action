@@ -3,17 +3,17 @@ import pytest
 import re
 import unittest
 from main import (
-    get_latest_go_version,
-    regex_replace_go_version_in_go_mod_file,
-    main,
+    DOCKERFILE,
     GO_MOD_FILE,
+    get_latest_go_version,
+    main,
+    regex_replace_go_version_in_go_mod_file,
 )
 import unittest
 from unittest.mock import mock_open, patch, MagicMock
 import requests
 
-GO_MOD_FILE = "go.mod"
-GO_MOD_GO_VERSION_REGEX = r"go\s\d+\.\d+"
+
 GO_VERSIONS_URL = "https://mocked-url.com"
 
 
@@ -32,6 +32,21 @@ def get_golang_version_from_go_mod_file() -> str:
         print(f"An error occurred: {e}")
 
 
+def get_golang_version_from_dockerfile() -> str:
+    try:
+        with open(DOCKERFILE, "r") as file:
+            file_content = file.read()
+            print(f"Content of the file:\n{file_content}")
+            pattern = r"FROM\sgolang:(\d+\.\d+\.?\d+?)"
+            matches = re.findall(pattern, file_content)
+            print("Extracted values:", matches[0])
+            return matches[0]
+    except FileNotFoundError:
+        print(f"File not found: {DOCKERFILE}")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+
 def setup_helper_create_go_mod_with_a_golang_version(version: str):
     with open(GO_MOD_FILE, "w") as file:
         file.write("module github.com/030/gomod-go-version-updater-action\n\n")
@@ -42,11 +57,23 @@ def setup_helper_create_go_mod_with_a_golang_version(version: str):
         file.write(")")
 
 
+def setup_helper_create_dockerfile_with_a_golang_version(version: str):
+    with open(DOCKERFILE, "w") as file:
+        file.write("FROM anchore/grype:v0.84.0 AS grype\n")
+        file.write("\n")
+        file.write("FROM golang:" + version + "\n")
+        file.write("ENV HOME=/home/${USERNAME} (\n")
+        file.write("COPY . /go/${USERNAME}/\n")
+
+
 def cleanup_helper():
     try:
         if os.path.exists(GO_MOD_FILE):
             os.remove(GO_MOD_FILE)
             print(f"The file '{GO_MOD_FILE}' has been successfully removed.")
+        if os.path.exists(DOCKERFILE):
+            os.remove(DOCKERFILE)
+            print(f"The file '{DOCKERFILE}' has been successfully removed.")
     except Exception as e:
         pytest.fail(f"An error occurred while trying to remove the file: {e}")
 
@@ -84,10 +111,6 @@ class TestUpdateGolangVersionInGoModFile(unittest.TestCase):
         with pytest.raises(
             ValueError, match="no golang version defined in file: go.mod"
         ):
-            main()
-
-    def test_update_golang_version_if_go_mod_does_not_exist(self):
-        with pytest.raises(ValueError, match="file not found: go.mod"):
             main()
 
 
@@ -167,7 +190,6 @@ class TestRegexReplaceGoVersionInGoModFile(unittest.TestCase):
     )
     @patch("logging.info")
     def test_general_exception(self, mock_logging_info, mock_file):
-        # Simulate an exception other than FileNotFoundError
         mock_file.side_effect = Exception("Some error")
 
         current_version = "1.18"
@@ -194,14 +216,11 @@ class TestMainFunction(unittest.TestCase):
         mock_determine_version,
         mock_regex_replace,
     ):
-        # Mocking the return values of the dependencies
         mock_get_latest_go_version.return_value = ("1", "19", "3")
         mock_determine_version.return_value = ("1.18.0", True)
 
-        # Run the main function
         main()
 
-        # Check that the functions were called with the correct arguments
         mock_configure_logging.assert_called_once()
         mock_get_latest_go_version.assert_called_once()
         mock_determine_version.assert_called_once()
@@ -220,14 +239,11 @@ class TestMainFunction(unittest.TestCase):
         mock_determine_version,
         mock_regex_replace,
     ):
-        # Mocking the return values of the dependencies
         mock_get_latest_go_version.return_value = ("1", "19", "3")
         mock_determine_version.return_value = ("1.18", False)
 
-        # Run the main function
         main()
 
-        # Check that the functions were called with the correct arguments
         mock_configure_logging.assert_called_once()
         mock_get_latest_go_version.assert_called_once()
         mock_determine_version.assert_called_once()
@@ -236,3 +252,52 @@ class TestMainFunction(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestUpdateGolangVersionInDockerfile(unittest.TestCase):
+    latest_major, latest_minor, latest_patch = get_latest_go_version()
+
+    def tearDown(self):
+        cleanup_helper()
+
+    def test_update_golang_version_consisting_of_major_minor_and_patch_in_dockerfile(
+        self,
+    ):
+        setup_helper_create_dockerfile_with_a_golang_version("4.2.0")
+        main()
+        self.assertEqual(
+            get_golang_version_from_dockerfile(),
+            TestUpdateGolangVersionInDockerfile.latest_major
+            + "."
+            + TestUpdateGolangVersionInDockerfile.latest_minor
+            + "."
+            + TestUpdateGolangVersionInDockerfile.latest_patch,
+        )
+
+    def test_update_golang_version_consisting_of_major_and_minor_in_dockerfile(
+        self,
+    ):
+        setup_helper_create_dockerfile_with_a_golang_version("8.4")
+        main()
+        self.assertEqual(
+            get_golang_version_from_dockerfile(),
+            TestUpdateGolangVersionInDockerfile.latest_major
+            + "."
+            + TestUpdateGolangVersionInDockerfile.latest_minor,
+        )
+
+    def test_update_golang_version_consisting_of_major_minor_patch_and_alpine_as_builder_in_dockerfile(
+        self,
+    ):
+        setup_helper_create_dockerfile_with_a_golang_version(
+            "1.2.3-alpine AS builder"
+        )
+        main()
+        self.assertEqual(
+            get_golang_version_from_dockerfile(),
+            TestUpdateGolangVersionInDockerfile.latest_major
+            + "."
+            + TestUpdateGolangVersionInDockerfile.latest_minor
+            + "."
+            + TestUpdateGolangVersionInDockerfile.latest_patch,
+        )
