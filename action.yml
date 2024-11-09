@@ -2,17 +2,15 @@
 name: gomod-go-version-updater-action
 description: gomod-go-version-updater-action
 inputs:
+  extra-pr-label:
+    description: |
+      Whether an extra PR label is required.
   github-token-for-downloading-private-go-modules:
     description: |
       Whether private go modules have to be downloaded.
   gomod-go-version-updater-action-log-level:
     description: |
       Change the default INFO log level to: DEBUG, WARNING, ERROR or CRITICAL.
-  workflow_file:
-    default: golang.yml
-    description: |
-      The description of the GitHub project.
-    required: true
 runs:
   using: "composite"
   steps:
@@ -120,6 +118,10 @@ runs:
           exit 0
         fi
 
+        if [ -n "${{ inputs.extra-pr-label }}" ]; then
+          export GOMOD_GO_VERSION_UPDATER_LABEL_EXTRA="--label ${{ inputs.extra-pr-label }}"
+        fi
+
         echo "creating pr..."
         gh pr create \
           --base main \
@@ -128,7 +130,7 @@ runs:
           --head "${GOMOD_GO_VERSION_UPDATER_ACTION_BRANCH}" \
           --label ${DEPENDENCIES_LABEL} \
           --label ${GO_LABEL} \
-          --label ${GOMOD_GO_VERSION_UPDATER_LABEL}
+          --label ${GOMOD_GO_VERSION_UPDATER_LABEL} ${GOMOD_GO_VERSION_UPDATER_LABEL_EXTRA}
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
