@@ -21,7 +21,7 @@ def determine_whether_go_version_in_go_mod_file_contains_patch_version() -> (
     version = ""
 
     if not os.path.exists(GO_MOD_FILE):
-        print(f"Error: The file '{GO_MOD_FILE}' does not exist.")
+        logging.error(f"The file '{GO_MOD_FILE}' does not exist.")
         return "", False
 
     try:
@@ -31,7 +31,7 @@ def determine_whether_go_version_in_go_mod_file_contains_patch_version() -> (
             go_version = re.search(r"go\s(\d+)\.(\d+)\.?(\d+)?", content)
             if go_version is None:
                 raise ValueError(
-                    f"no golang version defined in file: {GO_MOD_FILE}"
+                    f"No Go version defined in file: {GO_MOD_FILE}"
                 )
             major, minor, patch = (
                 go_version.group(1),
@@ -39,19 +39,15 @@ def determine_whether_go_version_in_go_mod_file_contains_patch_version() -> (
                 go_version.group(3),
             )
             logging.debug(
-                f"major: {major}, minor: {minor} and patch: {patch} found in go.mod"
+                f"Major: {major}, Minor: {minor}, Patch: {patch} found in go.mod"
             )
-            version = f"{major}.{minor}"
-            if patch:
-                version = f"{major}.{minor}.{patch}"
-                patch = True
-            logging.debug(f"go version: {version}. Patch: {patch}")
-            logging.debug(
-                f"current golang version that is defined in the go.mod: {version}"
-            )
+            version = f"{major}.{minor}" + (f".{patch}" if patch else "")
+            patch = bool(patch)
+            logging.debug(f"Go version: {version}, Patch: {patch}")
+            logging.debug(f"Current Go version in go.mod: {version}")
             return version, patch
     except Exception as e:
-        raise ValueError(f"an error occurred: {e}")
+        raise ValueError(f"An error occurred: {e}")
 
 
 def get_latest_go_version():
@@ -62,7 +58,7 @@ def get_latest_go_version():
         data = response.json()
         latest_version = data[0]["version"]
         logging.debug(
-            f"latest go version: {latest_version} according to: {GO_VERSIONS_URL}"
+            f"Latest Go version: {latest_version} from: {GO_VERSIONS_URL}"
         )
         version_regex = re.compile(r"go(\d+)\.(\d+)\.(\d+)")
         match_data = version_regex.match(latest_version)
@@ -73,7 +69,9 @@ def get_latest_go_version():
     except requests.exceptions.RequestException as e:
         logging.info(f"Error fetching data: {GO_VERSIONS_URL} {e}")
         sys.exit(1)
-    logging.debug(f"latest go major: {major}, minor: {minor} and {patch}")
+    logging.debug(
+        f"Latest Go version - Major: {major}, Minor: {minor}, Patch: {patch}"
+    )
     return major, minor, patch
 
 
@@ -89,12 +87,12 @@ def regex_replace_go_version_in_go_mod_file(
         with open(GO_MOD_FILE, "w") as file:
             file.write(modified_content)
         logging.info(
-            f"bump golang version in go.mod file from {current_version} to {replacement}"
+            f"Updated Go version in go.mod from {current_version} to {replacement}"
         )
     except FileNotFoundError:
-        logging.info(f"file not found: {GO_MOD_FILE}")
+        logging.info(f"File not found: {GO_MOD_FILE}")
     except Exception as e:
-        logging.info(f"an error occurred: {e}")
+        logging.info(f"An error occurred: {e}")
 
 
 def configure_logging(level=logging.INFO):
@@ -107,7 +105,7 @@ def configure_logging(level=logging.INFO):
 
 def bump_version_in_dockerfile(new_major: str, new_minor: str, new_patch: str):
     if not os.path.exists(DOCKERFILE):
-        print(f"Error: The file '{DOCKERFILE}' does not exist.")
+        logging.error(f"The file '{DOCKERFILE}' does not exist.")
         return "", False
 
     try:
@@ -118,10 +116,10 @@ def bump_version_in_dockerfile(new_major: str, new_minor: str, new_patch: str):
             with open(DOCKERFILE, "r") as file:
                 lines = file.readlines()
         except FileNotFoundError:
-            print(f"Error: The file '{DOCKERFILE}' was not found.")
+            logging.error(f"The file '{DOCKERFILE}' was not found.")
             return
         except IOError as e:
-            print(f"Error reading file '{DOCKERFILE}': {e}")
+            logging.error(f"Error reading file '{DOCKERFILE}': {e}")
             return
 
         updated_lines = []
@@ -131,16 +129,14 @@ def bump_version_in_dockerfile(new_major: str, new_minor: str, new_patch: str):
             if match_three_digit:
                 version = match_three_digit.group(1)
                 new_version = f"{new_major}.{new_minor}.{new_patch}"
-                updated_line = line.replace(version, new_version)
-                updated_lines.append(updated_line)
+                updated_lines.append(line.replace(version, new_version))
                 continue
 
             match_two_digit = two_digit_pattern.search(line)
             if match_two_digit:
                 version = match_two_digit.group(1)
                 new_version = f"{new_major}.{new_minor}"
-                updated_line = line.replace(version, new_version)
-                updated_lines.append(updated_line)
+                updated_lines.append(line.replace(version, new_version))
                 continue
 
             updated_lines.append(line)
@@ -148,11 +144,11 @@ def bump_version_in_dockerfile(new_major: str, new_minor: str, new_patch: str):
             with open(DOCKERFILE, "w") as file:
                 file.writelines(updated_lines)
         except IOError as e:
-            print(f"Error writing to file '{DOCKERFILE}': {e}")
+            logging.error(f"Error writing to file '{DOCKERFILE}': {e}")
             return
-        print(f"Updated content written to {DOCKERFILE}.")
+        logging.info(f"Updated content written to {DOCKERFILE}.")
     except Exception as e:
-        raise ValueError(f"an error occurred: {e}")
+        raise ValueError(f"An error occurred: {e}")
 
 
 def main():

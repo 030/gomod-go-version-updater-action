@@ -109,7 +109,8 @@ class TestUpdateGolangVersionInGoModFile(unittest.TestCase):
     def test_update_golang_version_consisting_of_major(self):
         setup_helper_create_go_mod_with_a_golang_version("42")
         with pytest.raises(
-            ValueError, match="no golang version defined in file: go.mod"
+            ValueError,
+            match="An error occurred: No Go version defined in file: go.mod",
         ):
             main()
 
@@ -168,7 +169,7 @@ class TestRegexReplaceGoVersionInGoModFile(unittest.TestCase):
             "module example.com\n\ngo 1.19\n"
         )
         mock_logging_info.assert_called_once_with(
-            f"bump golang version in go.mod file from {current_version} to {replacement}"
+            f"Updated Go version in go.mod from {current_version} to {replacement}"
         )
 
     @patch("builtins.open", side_effect=FileNotFoundError)
@@ -180,7 +181,7 @@ class TestRegexReplaceGoVersionInGoModFile(unittest.TestCase):
         regex_replace_go_version_in_go_mod_file(current_version, replacement)
 
         mock_logging_info.assert_called_once_with(
-            f"file not found: {GO_MOD_FILE}"
+            f"File not found: {GO_MOD_FILE}"
         )
 
     @patch(
@@ -198,7 +199,7 @@ class TestRegexReplaceGoVersionInGoModFile(unittest.TestCase):
         regex_replace_go_version_in_go_mod_file(current_version, replacement)
 
         mock_logging_info.assert_called_once_with(
-            "an error occurred: Some error"
+            "An error occurred: Some error"
         )
 
 
