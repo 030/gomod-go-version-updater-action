@@ -5,7 +5,7 @@ import requests
 import sys
 from typing import Tuple
 
-
+DOCKERFILE = "Dockerfile"
 GO_MOD_FILE = "go.mod"
 GO_MOD_GO_VERSION_REGEX = r"go\s\d+.*"
 GO_VERSIONS_URL = "https://go.dev/dl/?mode=json"
@@ -19,6 +19,11 @@ def determine_whether_go_version_in_go_mod_file_contains_patch_version() -> (
 ):
     patch = False
     version = ""
+
+    if not os.path.exists(GO_MOD_FILE):
+        print(f"Error: The file '{GO_MOD_FILE}' does not exist.")
+        return "", False
+
     try:
         with open(GO_MOD_FILE, "r") as file:
             major, minor, patch = "", "", ""
@@ -45,8 +50,6 @@ def determine_whether_go_version_in_go_mod_file_contains_patch_version() -> (
                 f"current golang version that is defined in the go.mod: {version}"
             )
             return version, patch
-    except FileNotFoundError:
-        raise ValueError(f"file not found: {GO_MOD_FILE}")
     except Exception as e:
         raise ValueError(f"an error occurred: {e}")
 
@@ -102,6 +105,56 @@ def configure_logging(level=logging.INFO):
     )
 
 
+def bump_version_in_dockerfile(new_major: str, new_minor: str, new_patch: str):
+    if not os.path.exists(DOCKERFILE):
+        print(f"Error: The file '{DOCKERFILE}' does not exist.")
+        return "", False
+
+    try:
+        three_digit_pattern = re.compile(r"FROM\sgolang:(\d+\.\d+\.\d+)")
+        two_digit_pattern = re.compile(r"FROM\sgolang:(\d+\.\d+)")
+
+        try:
+            with open(DOCKERFILE, "r") as file:
+                lines = file.readlines()
+        except FileNotFoundError:
+            print(f"Error: The file '{DOCKERFILE}' was not found.")
+            return
+        except IOError as e:
+            print(f"Error reading file '{DOCKERFILE}': {e}")
+            return
+
+        updated_lines = []
+
+        for line in lines:
+            match_three_digit = three_digit_pattern.search(line)
+            if match_three_digit:
+                version = match_three_digit.group(1)
+                new_version = f"{new_major}.{new_minor}.{new_patch}"
+                updated_line = line.replace(version, new_version)
+                updated_lines.append(updated_line)
+                continue
+
+            match_two_digit = two_digit_pattern.search(line)
+            if match_two_digit:
+                version = match_two_digit.group(1)
+                new_version = f"{new_major}.{new_minor}"
+                updated_line = line.replace(version, new_version)
+                updated_lines.append(updated_line)
+                continue
+
+            updated_lines.append(line)
+        try:
+            with open(DOCKERFILE, "w") as file:
+                file.writelines(updated_lines)
+        except IOError as e:
+            print(f"Error writing to file '{DOCKERFILE}': {e}")
+            return
+        print(f"Updated content written to {DOCKERFILE}.")
+    except Exception as e:
+        raise ValueError(f"an error occurred: {e}")
+
+
 def main():
     configure_logging(GOMOD_GO_VERSION_UPDATER_ACTION_LOGGING_LEVEL)
     latest_major, latest_minor, latest_patch = get_latest_go_version()
@@ -112,10 +165,12 @@ def main():
         regex_replace_go_version_in_go_mod_file(
             current_version, f"{latest_major}.{latest_minor}.{latest_patch}"
         )
+        bump_version_in_dockerfile(latest_major, latest_minor, latest_patch)
         return
     regex_replace_go_version_in_go_mod_file(
         current_version, f"{latest_major}.{latest_minor}"
     )
+    bump_version_in_dockerfile(latest_major, latest_minor, latest_patch)
 
 
 if __name__ == "__main__":

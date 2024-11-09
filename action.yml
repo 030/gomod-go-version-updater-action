@@ -98,7 +98,7 @@ runs:
         if [ -n "$(git status --porcelain)" ]; then echo "There are uncommitted changes."; else echo "No changes to commit." && exit 0; fi
 
         echo "git add..."
-        git add go.mod
+        git add Dockerfile go.mod
 
         echo "git config user..."
         git config user.name github-actions[bot]

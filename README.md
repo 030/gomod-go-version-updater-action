@@ -14,7 +14,7 @@ update the go version that is defined in a `go.mod` file.
 1. Once the setting has been enabled, create a
    `~/.github/workflows/gomod-go-version-updater.yml` file with the following
    content:
-   ```yaml
+   ```yml
    ---
    name: gomod-go-version-updater-action
    "on":
@@ -33,7 +33,7 @@ update the go version that is defined in a `go.mod` file.
    add a `pull_request_review` trigger. This will cause a specific Workflow
    Action to run whenever someone submits a review for the pull request created
    by the **gomod-go-version-updater-action**:
-   ```yaml
+   ```yml
    "on":
      # required by gomod-go-version-updater to trigger this action once pr has
      # been reviewed
@@ -41,14 +41,14 @@ update the go version that is defined in a `go.mod` file.
        types: [submitted]
    ```
 1. Optional: if private go modules have to be downloaded:
-   ```yaml
+   ```yml
    - uses: 030/gomod-go-version-updater-action@v0.1.6
      with:
        github-token-for-downloading-private-go-modules: ${{ secrets.GITHUB_TOKEN }}
    ```
 1. Optional: set the log level to `DEBUG`, `WARNING`, `ERROR` or `CRITICAL`
    (default: INFO):
-   ```yaml
+   ```yml
    - uses: 030/gomod-go-version-updater-action@v0.1.6
      with:
        gomod-go-version-updater-action-log-level: DEBUG
