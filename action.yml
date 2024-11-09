@@ -97,8 +97,10 @@ runs:
 
         if [ -n "$(git status --porcelain)" ]; then echo "There are uncommitted changes."; else echo "No changes to commit." && exit 0; fi
 
-        echo "git add..."
-        git add Dockerfile go.mod
+        for f in Dockerfile go.mod; do
+          echo "git add file: '${f}'..."
+          [ -f ${f} ] && git add ${f}
+        done
 
         echo "git config user..."
         git config user.name github-actions[bot]
@@ -110,7 +112,7 @@ runs:
         echo "git push..."
         git push origin ${GOMOD_GO_VERSION_UPDATER_ACTION_BRANCH} -f
 
-        if gh pr list --json title | jq -e '.[] | select(.title | test("build\\(deps\\): bump golang version in go\\.mod file from .* to .*"))'; then
+        if gh pr list --json title | jq -e '.[] | select(.title | test("build\\(deps\\): bump golang version from .* to .*"))'; then
           echo "PR exists already. Updating the 'title' and 'description'..."
           gh pr edit ${GOMOD_GO_VERSION_UPDATER_ACTION_BRANCH} \
             --body "${GOMOD_GO_VERSION_UPDATER_ACTION_MESSAGE}" \

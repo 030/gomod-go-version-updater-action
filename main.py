@@ -49,7 +49,7 @@ def update_go_version_in_mod_file(current_version: str, new_version: str):
         with open(GO_MOD_FILE, "w") as file:
             file.write(content)
         logging.info(
-            f"Updated Go version in go.mod from {current_version} to {new_version}"
+            f"bump golang version from {current_version} to {new_version}"
         )
     except FileNotFoundError:
         logging.info(f"File not found: {GO_MOD_FILE}")
