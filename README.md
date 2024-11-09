@@ -53,6 +53,12 @@ update the go version that is defined in a `go.mod` file.
      with:
        gomod-go-version-updater-action-log-level: DEBUG
    ```
+1. Optional: add an extra label to the PR that will be created:
+   ```yml
+   - uses: 030/gomod-go-version-updater-action@v0.1.6
+     with:
+       extra-pr-label: something
+   ```
 
 ## Test
 
