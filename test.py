@@ -7,12 +7,13 @@ from main import (
     get_latest_go_version,
     main,
 )
-from unittest.mock import mock_open, patch, MagicMock
+from unittest.mock import patch, MagicMock
 import logging
 import requests
 import pytest
 
 GO_VERSIONS_URL = "https://mocked-url.com"
+TEST_NESTED_DOCKERFILE = "test/testdata/" + DOCKERFILE
 logging.basicConfig(level=logging.INFO)
 
 
@@ -30,9 +31,23 @@ def read_version_from_file(filepath: str, pattern: str) -> str:
 
 
 def setup_file_with_version(filepath: str, content: str):
+    directory = os.path.dirname(filepath)
+
+    if not os.path.exists(directory) and directory != "":
+        os.makedirs(directory)
+
     with open(filepath, "w") as file:
         file.write(content)
         logging.info(f"Created {filepath} with content:\n{content}")
+
+
+def setup_file_with_version_and_test(self: any, filepath: str):
+    setup_file_with_version(filepath, "FROM golang:4.2.0\nsome line\n")
+    main()
+    self.assertEqual(
+        read_version_from_file(filepath, r"FROM\sgolang:(\d+\.\d+\.?\d+?)"),
+        f"{self.latest_major}.{self.latest_minor}.{self.latest_patch}",
+    )
 
 
 def cleanup_files(*filepaths):
@@ -111,16 +126,13 @@ class TestUpdateGolangVersionInDockerfile(unittest.TestCase):
 
     def tearDown(self):
         cleanup_files(DOCKERFILE)
+        cleanup_files(TEST_NESTED_DOCKERFILE)
 
     def test_update_version_in_dockerfile_major_minor_patch(self):
-        setup_file_with_version(DOCKERFILE, "FROM golang:4.2.0\nsome line\n")
-        main()
-        self.assertEqual(
-            read_version_from_file(
-                DOCKERFILE, r"FROM\sgolang:(\d+\.\d+\.?\d+?)"
-            ),
-            f"{self.latest_major}.{self.latest_minor}.{self.latest_patch}",
-        )
+        setup_file_with_version_and_test(self, DOCKERFILE)
+
+    def test_update_version_in_nested_dockerfile_major_minor_patch(self):
+        setup_file_with_version_and_test(self, TEST_NESTED_DOCKERFILE)
 
 
 if __name__ == "__main__":
