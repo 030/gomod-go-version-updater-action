@@ -95,10 +95,12 @@ runs:
 
         if [ -n "$(git status --porcelain)" ]; then echo "There are uncommitted changes."; else echo "No changes to commit." && exit 0; fi
 
-        for f in Dockerfile go.mod; do
-          echo "git add file: '${f}'..."
-          [ -f ${f} ] && git add ${f}
-        done
+        go_mod_file="go.mod"
+        echo "adding ${go_mod_file} file..."
+        [ -f "${go_mod_file}" ] && git add "${go_mod_file}"
+
+        echo "adding nested Dockerfiles..."
+        find . -name 'Dockerfile' -exec git add {} +
 
         echo "git config user..."
         git config user.name github-actions[bot]

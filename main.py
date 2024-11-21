@@ -63,12 +63,25 @@ def configure_logging(level=logging.INFO):
     )
 
 
-def update_dockerfile_version(new_major: str, new_minor: str, new_patch: str):
-    if not os.path.exists(DOCKERFILE):
-        logging.error(f"The file '{DOCKERFILE}' does not exist.")
-        return
+def update_dockerfile_version_in_directory(
+    new_major: str, new_minor: str, new_patch: str
+):
+    for root, _, files in os.walk(os.getcwd()):
+        for file in files:
+            if file == DOCKERFILE:
+                dockerfile_path = os.path.join(root, file)
+                update_dockerfile_version(
+                    dockerfile_path,
+                    new_major,
+                    new_minor,
+                    new_patch,
+                )
 
-    with open(DOCKERFILE, "r") as file:
+
+def update_dockerfile_version(
+    dockerfile_path: str, new_major: str, new_minor: str, new_patch: str
+):
+    with open(dockerfile_path, "r") as file:
         lines = file.readlines()
 
     updated_lines = []
@@ -90,7 +103,7 @@ def update_dockerfile_version(new_major: str, new_minor: str, new_patch: str):
         else:
             updated_lines.append(line)
 
-    with open(DOCKERFILE, "w") as file:
+    with open(dockerfile_path, "w") as file:
         file.writelines(updated_lines)
     logging.info(
         f"Updated Dockerfile to version {new_major}.{new_minor}.{new_patch}"
@@ -101,7 +114,9 @@ def main():
     configure_logging(LOGGING_LEVEL)
     latest_major, latest_minor, latest_patch = get_latest_go_version()
 
-    update_dockerfile_version(latest_major, latest_minor, latest_patch)
+    update_dockerfile_version_in_directory(
+        latest_major, latest_minor, latest_patch
+    )
 
     current_version, has_patch = get_go_version_from_mod_file()
     latest_major_minor = f"{latest_major}.{latest_minor}"
