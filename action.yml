@@ -53,17 +53,17 @@ runs:
           fi
         }
         if ! check_label_exists ${DEPENDENCIES_LABEL}; then
-          gh label create ${DEPENDENCIES_LABEL} \
+          gh label create "${DEPENDENCIES_LABEL}" \
             --color "#0366d6" \
             --description "Pull requests that update a dependency file"
         fi
         if ! check_label_exists ${GO_LABEL}; then
-          gh label create ${GO_LABEL} \
+          gh label create "${GO_LABEL}" \
             --color "#16e2e2" \
             --description "Pull requests that update Go code"
         fi
         if ! check_label_exists ${GOMOD_GO_VERSION_UPDATER_LABEL}; then
-          gh label create ${GOMOD_GO_VERSION_UPDATER_LABEL} \
+          gh label create "${GOMOD_GO_VERSION_UPDATER_LABEL}" \
             --color "#F50BAB" \
             --description "Pull requests that update Go version in the go.mod file"
         fi
@@ -120,19 +120,35 @@ runs:
           exit 0
         fi
 
+        # echo "before: ${{ inputs.extra-pr-label }}"
+        # if [ -n "${{ inputs.extra-pr-label }}" ]; then
+        #   export GOMOD_GO_VERSION_UPDATER_LABEL_EXTRA="--label '${{ inputs.extra-pr-label }}'"
+        # fi
+        # echo "after: ${GOMOD_GO_VERSION_UPDATER_LABEL_EXTRA}"
+
+        labels=("${DEPENDENCIES_LABEL}" "${GO_LABEL}" "${GOMOD_GO_VERSION_UPDATER_LABEL}")
+
         if [ -n "${{ inputs.extra-pr-label }}" ]; then
-          export GOMOD_GO_VERSION_UPDATER_LABEL_EXTRA="--label ${{ inputs.extra-pr-label }}"
+          labels+=("${{ inputs.extra-pr-label }}")
         fi
 
+        echo "Labels:"
+        for label in "${labels[@]}"; do
+          echo "'$label'"
+        done
+
         echo "creating pr..."
+        label_args=()
+        for label in "${labels[@]}"; do
+          label_args+=(--label "$label")
+        done
+
         gh pr create \
           --base main \
           --body "${GOMOD_GO_VERSION_UPDATER_ACTION_MESSAGE}" \
           --fill \
           --head "${GOMOD_GO_VERSION_UPDATER_ACTION_BRANCH}" \
-          --label ${DEPENDENCIES_LABEL} \
-          --label ${GO_LABEL} \
-          --label ${GOMOD_GO_VERSION_UPDATER_LABEL} ${GOMOD_GO_VERSION_UPDATER_LABEL_EXTRA}
+          "${label_args[@]}"
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
