@@ -120,18 +120,10 @@ runs:
           exit 0
         fi
 
-        # echo "before: ${{ inputs.extra-pr-label }}"
-        # if [ -n "${{ inputs.extra-pr-label }}" ]; then
-        #   export GOMOD_GO_VERSION_UPDATER_LABEL_EXTRA="--label '${{ inputs.extra-pr-label }}'"
-        # fi
-        # echo "after: ${GOMOD_GO_VERSION_UPDATER_LABEL_EXTRA}"
-
         labels=("${DEPENDENCIES_LABEL}" "${GO_LABEL}" "${GOMOD_GO_VERSION_UPDATER_LABEL}")
-
         if [ -n "${{ inputs.extra-pr-label }}" ]; then
           labels+=("${{ inputs.extra-pr-label }}")
         fi
-
         echo "Labels:"
         for label in "${labels[@]}"; do
           echo "'$label'"
