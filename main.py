@@ -1,9 +1,10 @@
 import logging
 import os
 import re
-import requests
 import sys
 from typing import Tuple
+
+import requests
 
 DOCKERFILE = "Dockerfile"
 GO_MOD_FILE = "go.mod"
@@ -100,6 +101,7 @@ def update_dockerfile_version(
                 else f"{new_major}.{new_minor}"
             )
             updated_lines.append(line.replace(version, new_version))
+            logging.info(f"bump golang version from {version} to {new_version}")
         else:
             updated_lines.append(line)
 
