@@ -87,7 +87,8 @@ runs:
 
         export GOMOD_GO_VERSION_UPDATER_ACTION_NEW_GOLANG_VERSION_OUTPUT=$(echo ${GOMOD_GO_VERSION_UPDATER_ACTION_OUTPUT} |\
           grep "bump golang version" |\
-          sed "s|.*\(bump.*\)|\1|")
+          sed "s|.*\(bump.*\)|\1|" |\
+          head -n 1)
         echo "GOMOD_GO_VERSION_UPDATER_ACTION_NEW_GOLANG_VERSION_OUTPUT: ${GOMOD_GO_VERSION_UPDATER_ACTION_NEW_GOLANG_VERSION_OUTPUT}"
 
         export GOMOD_GO_VERSION_UPDATER_ACTION_MESSAGE="build(deps): ${GOMOD_GO_VERSION_UPDATER_ACTION_NEW_GOLANG_VERSION_OUTPUT}"
