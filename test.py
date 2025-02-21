@@ -14,6 +14,7 @@ from main import (
     get_go_version_from_mod_file,
     get_latest_go_version,
     main,
+    update_go_version_in_mod_file,
 )
 
 GO_VERSIONS_URL = "https://mocked-url.com"
@@ -174,6 +175,37 @@ class TestGetGoVersionFromModFile(unittest.TestCase):
         self.assertRaises(
             ValueError, get_go_version_from_mod_file, mod_file.name
         )
+
+
+class TestUpdateGoVersionInModFile(unittest.TestCase):
+    def test_update_go_version_in_mod_file_with_patch(self):
+        # Prepare go.mod file
+        mod_file = tempfile.NamedTemporaryFile(delete_on_close=False)
+        mod_file.write(b"module example\n\ngo 1.2.3\n")
+        mod_file.close()
+
+        update_go_version_in_mod_file(mod_file.name, "1.2.3", "1.2.4")
+
+        with open(mod_file.name, "r") as file:
+            content = file.read()
+            self.assertIn("go 1.2.4", content)
+
+    def test_update_go_version_in_mod_file_without_patch(self):
+        # Prepare go.mod file
+        mod_file = tempfile.NamedTemporaryFile(delete_on_close=False)
+        mod_file.write(b"module example\n\ngo 1.2\n")
+        mod_file.close()
+
+        update_go_version_in_mod_file(mod_file.name, "1.2", "1.4")
+
+        with open(mod_file.name, "r") as file:
+            content = file.read()
+            self.assertIn("go 1.4", content)
+
+    def test_update_go_version_in_mod_file_missing_file(self):
+        with patch("logging.info") as mock_logging:
+            update_go_version_in_mod_file("nonexistent_file", "1.2", "1.4")
+            mock_logging.assert_called_with("File not found: nonexistent_file")
 
 
 if __name__ == "__main__":

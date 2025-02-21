@@ -49,18 +49,20 @@ def get_go_version_from_mod_file(go_mod_file: str) -> Tuple[str, bool]:
         return version, bool(patch)
 
 
-def update_go_version_in_mod_file(current_version: str, new_version: str):
+def update_go_version_in_mod_file(
+    go_mod_file: str, current_version: str, new_version: str
+):
     try:
-        with open(GO_MOD_FILE, "r") as file:
+        with open(go_mod_file, "r") as file:
             content = file.read()
         content = re.sub(GO_MOD_GO_VERSION_REGEX, f"go {new_version}", content)
-        with open(GO_MOD_FILE, "w") as file:
+        with open(go_mod_file, "w") as file:
             file.write(content)
         logging.info(
             f"bump golang version from {current_version} to {new_version}"
         )
     except FileNotFoundError:
-        logging.info(f"File not found: {GO_MOD_FILE}")
+        logging.info(f"File not found: {go_mod_file}")
 
 
 def update_dockerfile_version_in_directory(
@@ -122,11 +124,14 @@ def main():
     latest_major_minor = f"{latest_major}.{latest_minor}"
     if has_patch:
         update_go_version_in_mod_file(
+            GO_MOD_FILE,
             current_version,
             f"{latest_major_minor}.{latest_patch}",
         )
         return
-    update_go_version_in_mod_file(current_version, f"{latest_major_minor}")
+    update_go_version_in_mod_file(
+        GO_MOD_FILE, current_version, f"{latest_major_minor}"
+    )
 
 
 if __name__ == "__main__":
