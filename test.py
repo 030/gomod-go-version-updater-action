@@ -1,16 +1,20 @@
+import logging
 import os
 import re
+import tempfile
 import unittest
+from unittest.mock import MagicMock, patch
+
+import pytest
+import requests
+
 from main import (
     DOCKERFILE,
     GO_MOD_FILE,
+    get_go_version_from_mod_file,
     get_latest_go_version,
     main,
 )
-from unittest.mock import patch, MagicMock
-import logging
-import requests
-import pytest
 
 GO_VERSIONS_URL = "https://mocked-url.com"
 TEST_NESTED_DOCKERFILE = "test/testdata/" + DOCKERFILE
@@ -133,6 +137,43 @@ class TestUpdateGolangVersionInDockerfile(unittest.TestCase):
 
     def test_update_version_in_nested_dockerfile_major_minor_patch(self):
         setup_file_with_version_and_test(self, TEST_NESTED_DOCKERFILE)
+
+
+class TestGetGoVersionFromModFile(unittest.TestCase):
+    def test_get_go_version_success_with_patch_version(self):
+        # Prepare go.mod file
+        mod_file = tempfile.NamedTemporaryFile(delete_on_close=False)
+        mod_file.write(b"module example\n\ngo 1.2.3\n")
+        mod_file.close()
+
+        result = get_go_version_from_mod_file(mod_file.name)
+        self.assertEqual(result, ("1.2.3", True))
+
+    def test_get_go_version_success_without_patch_version(self):
+        # Prepare go.mod file
+        mod_file = tempfile.NamedTemporaryFile(delete_on_close=False)
+        mod_file.write(b"module example\n\ngo 1.2\n")
+        mod_file.close()
+
+        result = get_go_version_from_mod_file(mod_file.name)
+        self.assertEqual(result, ("1.2", False))
+
+    # FIXME: I do not agree with the current choice to ignore the non existing
+    # file, but I'll get to that in a later commit. ;-)
+    # def test_get_go_version_missing_file(self):
+    #     self.assertRaises(
+    #         FileNotFoundError, get_go_version_from_mod_file, "nonexistent_file"
+    #     )
+
+    def test_invalid_file_content(self):
+        # Prepare go.mod file
+        mod_file = tempfile.NamedTemporaryFile(delete_on_close=False)
+        mod_file.write(b"module example\n")
+        mod_file.close()
+
+        self.assertRaises(
+            ValueError, get_go_version_from_mod_file, mod_file.name
+        )
 
 
 if __name__ == "__main__":

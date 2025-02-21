@@ -14,16 +14,16 @@ LOGGING_LEVEL = os.getenv(
 )
 
 
-def get_go_version_from_mod_file() -> Tuple[str, bool]:
-    if not os.path.exists(GO_MOD_FILE):
-        logging.error(f"The file '{GO_MOD_FILE}' does not exist.")
+def get_go_version_from_mod_file(go_mod_file: str) -> Tuple[str, bool]:
+    if not os.path.exists(go_mod_file):
+        logging.error(f"The file '{go_mod_file}' does not exist.")
         return "", False
 
-    with open(GO_MOD_FILE, "r") as file:
+    with open(go_mod_file, "r") as file:
         content = file.read()
         match = re.search(r"go\s(\d+)\.(\d+)\.?(\d+)?", content)
         if not match:
-            raise ValueError(f"No Go version defined in file: {GO_MOD_FILE}")
+            raise ValueError(f"No Go version defined in file: {go_mod_file}")
         major, minor, patch = match.groups()
         version = f"{major}.{minor}" + (f".{patch}" if patch else "")
         return version, bool(patch)
@@ -118,7 +118,7 @@ def main():
         latest_major, latest_minor, latest_patch
     )
 
-    current_version, has_patch = get_go_version_from_mod_file()
+    current_version, has_patch = get_go_version_from_mod_file(GO_MOD_FILE)
     latest_major_minor = f"{latest_major}.{latest_minor}"
     if has_patch:
         update_go_version_in_mod_file(
