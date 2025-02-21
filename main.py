@@ -14,6 +14,26 @@ LOGGING_LEVEL = os.getenv(
 )
 
 
+def configure_logging(level=logging.INFO):
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+
+def get_latest_go_version():
+    try:
+        response = requests.get(GO_VERSIONS_URL)
+        response.raise_for_status()
+        data = response.json()
+        match = re.match(r"go(\d+)\.(\d+)\.(\d+)", data[0]["version"])
+        return match.groups() if match else ("", "", "")
+    except requests.RequestException as e:
+        logging.error(f"Error fetching data from {GO_VERSIONS_URL}: {e}")
+        sys.exit(1)
+
+
 def get_go_version_from_mod_file(go_mod_file: str) -> Tuple[str, bool]:
     if not os.path.exists(go_mod_file):
         logging.error(f"The file '{go_mod_file}' does not exist.")
@@ -29,18 +49,6 @@ def get_go_version_from_mod_file(go_mod_file: str) -> Tuple[str, bool]:
         return version, bool(patch)
 
 
-def get_latest_go_version():
-    try:
-        response = requests.get(GO_VERSIONS_URL)
-        response.raise_for_status()
-        data = response.json()
-        match = re.match(r"go(\d+)\.(\d+)\.(\d+)", data[0]["version"])
-        return match.groups() if match else ("", "", "")
-    except requests.RequestException as e:
-        logging.error(f"Error fetching data from {GO_VERSIONS_URL}: {e}")
-        sys.exit(1)
-
-
 def update_go_version_in_mod_file(current_version: str, new_version: str):
     try:
         with open(GO_MOD_FILE, "r") as file:
@@ -53,14 +61,6 @@ def update_go_version_in_mod_file(current_version: str, new_version: str):
         )
     except FileNotFoundError:
         logging.info(f"File not found: {GO_MOD_FILE}")
-
-
-def configure_logging(level=logging.INFO):
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
 
 
 def update_dockerfile_version_in_directory(
