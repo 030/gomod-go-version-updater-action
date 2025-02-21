@@ -73,7 +73,13 @@ runs:
     - name: update go version and push branch
       run: |
         git fetch -p -P
-        git checkout -b ${GOMOD_GO_VERSION_UPDATER_ACTION_BRANCH}
+
+        if (git ls-remote --exit-code --heads origin refs/heads/${GOMOD_GO_VERSION_UPDATER_ACTION_BRANCH}); then
+          echo "Branch '${GOMOD_GO_VERSION_UPDATER_ACTION_BRANCH}' already exists."
+          git checkout ${GOMOD_GO_VERSION_UPDATER_ACTION_BRANCH}
+        else
+          git checkout -b ${GOMOD_GO_VERSION_UPDATER_ACTION_BRANCH}
+        fi
 
         python --version
         python3 --version
