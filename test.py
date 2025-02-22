@@ -145,18 +145,18 @@ class TestUpdateGolangVersionInDockerfile(unittest.TestCase):
 class TestGetGoVersionFromModFile(unittest.TestCase):
     def test_get_go_version_success_with_patch_version(self):
         # Prepare go.mod file
-        mod_file = tempfile.NamedTemporaryFile(delete_on_close=False)
+        mod_file = tempfile.NamedTemporaryFile()
         mod_file.write(b"module example\n\ngo 1.2.3\n")
-        mod_file.close()
+        mod_file.flush()
 
         result = get_go_version_from_mod_file(mod_file.name)
         self.assertEqual(result, ("1.2.3", True))
 
     def test_get_go_version_success_without_patch_version(self):
         # Prepare go.mod file
-        mod_file = tempfile.NamedTemporaryFile(delete_on_close=False)
+        mod_file = tempfile.NamedTemporaryFile()
         mod_file.write(b"module example\n\ngo 1.2\n")
-        mod_file.close()
+        mod_file.flush()
 
         result = get_go_version_from_mod_file(mod_file.name)
         self.assertEqual(result, ("1.2", False))
@@ -168,9 +168,9 @@ class TestGetGoVersionFromModFile(unittest.TestCase):
 
     def test_invalid_file_content(self):
         # Prepare go.mod file
-        mod_file = tempfile.NamedTemporaryFile(delete_on_close=False)
+        mod_file = tempfile.NamedTemporaryFile()
         mod_file.write(b"module example\n")
-        mod_file.close()
+        mod_file.flush()
 
         self.assertRaises(
             ValueError, get_go_version_from_mod_file, mod_file.name
@@ -180,9 +180,9 @@ class TestGetGoVersionFromModFile(unittest.TestCase):
 class TestUpdateGoVersionInModFile(unittest.TestCase):
     def test_update_go_version_in_mod_file_with_patch(self):
         # Prepare go.mod file
-        mod_file = tempfile.NamedTemporaryFile(delete_on_close=False)
+        mod_file = tempfile.NamedTemporaryFile()
         mod_file.write(b"module example\n\ngo 1.2.3\n")
-        mod_file.close()
+        mod_file.flush()
 
         # Execute the updater
         update_go_version_in_mod_file(mod_file.name, "1.2.3", "1.2.4")
@@ -194,9 +194,9 @@ class TestUpdateGoVersionInModFile(unittest.TestCase):
 
     def test_update_go_version_in_mod_file_without_patch(self):
         # Prepare go.mod file
-        mod_file = tempfile.NamedTemporaryFile(delete_on_close=False)
+        mod_file = tempfile.NamedTemporaryFile()
         mod_file.write(b"module example\n\ngo 1.2\n")
-        mod_file.close()
+        mod_file.flush()
 
         # Execute the updater
         update_go_version_in_mod_file(mod_file.name, "1.2", "1.4")
@@ -214,7 +214,7 @@ class TestUpdateGoVersionInModFile(unittest.TestCase):
 
 class TestUpdateGoVersionInDirectory(unittest.TestCase):
     def setUp(self):
-        self.temp_dir = tempfile.TemporaryDirectory(delete=False)
+        self.temp_dir = tempfile.TemporaryDirectory()
 
     def tearDown(self):
         self.temp_dir.cleanup()
