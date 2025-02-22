@@ -15,3 +15,6 @@ jobs:
       - name: Run tests
         run: |
           pytest --cov=main test.py --verbose --capture=no --cov-report term-missing
+      - name: Type check the code (mypy)
+        run: |
+          mypy main.py
