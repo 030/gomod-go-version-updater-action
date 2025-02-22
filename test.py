@@ -161,12 +161,10 @@ class TestGetGoVersionFromModFile(unittest.TestCase):
         result = get_go_version_from_mod_file(mod_file.name)
         self.assertEqual(result, ("1.2", False))
 
-    # FIXME: I do not agree with the current choice to ignore the non existing
-    # file, but I'll get to that in a later commit. ;-)
-    # def test_get_go_version_missing_file(self):
-    #     self.assertRaises(
-    #         FileNotFoundError, get_go_version_from_mod_file, "nonexistent_file"
-    #     )
+    def test_get_go_version_missing_file(self):
+        self.assertRaises(
+            FileNotFoundError, get_go_version_from_mod_file, "nonexistent_file"
+        )
 
     def test_invalid_file_content(self):
         # Prepare go.mod file

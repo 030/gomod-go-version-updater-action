@@ -36,10 +36,6 @@ def get_latest_go_version():
 
 
 def get_go_version_from_mod_file(go_mod_file: str) -> Tuple[str, bool]:
-    if not os.path.exists(go_mod_file):
-        logging.error(f"The file '{go_mod_file}' does not exist.")
-        return "", False
-
     with open(go_mod_file, "r") as file:
         content = file.read()
         match = re.search(r"go\s(\d+)\.(\d+)\.?(\d+)?", content)
