@@ -3,6 +3,7 @@ import os
 import re
 import requests
 import sys
+from pathlib import Path
 from typing import Tuple
 
 DOCKERFILE = "Dockerfile"
@@ -65,6 +66,30 @@ def update_go_version_in_mod_file(
         logging.info(f"File not found: {go_mod_file}")
 
 
+def update_go_version_in_directory(
+    new_major: str,
+    new_minor: str,
+    new_patch: str,
+    dir: str = None,
+):
+    if dir is None:
+        dir = os.getcwd()
+    for path in Path(dir).rglob(GO_MOD_FILE):
+        logging.debug(f"Found go.mod file: {path}")
+        current_version, has_patch = get_go_version_from_mod_file(path)
+        new_major_minor = f"{new_major}.{new_minor}"
+        if has_patch:
+            update_go_version_in_mod_file(
+                path,
+                current_version,
+                f"{new_major_minor}.{new_patch}",
+            )
+            continue
+        update_go_version_in_mod_file(
+            path, current_version, f"{new_major_minor}"
+        )
+
+
 def update_dockerfile_version_in_directory(
     new_major: str, new_minor: str, new_patch: str
 ):
@@ -120,18 +145,7 @@ def main():
         latest_major, latest_minor, latest_patch
     )
 
-    current_version, has_patch = get_go_version_from_mod_file(GO_MOD_FILE)
-    latest_major_minor = f"{latest_major}.{latest_minor}"
-    if has_patch:
-        update_go_version_in_mod_file(
-            GO_MOD_FILE,
-            current_version,
-            f"{latest_major_minor}.{latest_patch}",
-        )
-        return
-    update_go_version_in_mod_file(
-        GO_MOD_FILE, current_version, f"{latest_major_minor}"
-    )
+    update_go_version_in_directory(latest_major, latest_minor, latest_patch)
 
 
 if __name__ == "__main__":
