@@ -2,6 +2,7 @@ import logging
 import os
 import re
 import sys
+from pathlib import Path
 from typing import Tuple
 
 import requests
@@ -15,19 +16,12 @@ LOGGING_LEVEL = os.getenv(
 )
 
 
-def get_go_version_from_mod_file() -> Tuple[str, bool]:
-    if not os.path.exists(GO_MOD_FILE):
-        logging.error(f"The file '{GO_MOD_FILE}' does not exist.")
-        return "", False
-
-    with open(GO_MOD_FILE, "r") as file:
-        content = file.read()
-        match = re.search(r"go\s(\d+)\.(\d+)\.?(\d+)?", content)
-        if not match:
-            raise ValueError(f"No Go version defined in file: {GO_MOD_FILE}")
-        major, minor, patch = match.groups()
-        version = f"{major}.{minor}" + (f".{patch}" if patch else "")
-        return version, bool(patch)
+def configure_logging(level=logging.INFO):
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
 
 
 def get_latest_go_version():
@@ -42,26 +36,55 @@ def get_latest_go_version():
         sys.exit(1)
 
 
-def update_go_version_in_mod_file(current_version: str, new_version: str):
+def get_go_version_from_mod_file(go_mod_file: str) -> Tuple[str, bool]:
+    with open(go_mod_file, "r") as file:
+        content = file.read()
+        match = re.search(r"go\s(\d+)\.(\d+)\.?(\d+)?", content)
+        if not match:
+            raise ValueError(f"No Go version defined in file: {go_mod_file}")
+        major, minor, patch = match.groups()
+        version = f"{major}.{minor}" + (f".{patch}" if patch else "")
+        return version, bool(patch)
+
+
+def update_go_version_in_mod_file(
+    go_mod_file: str, current_version: str, new_version: str
+):
     try:
-        with open(GO_MOD_FILE, "r") as file:
+        with open(go_mod_file, "r") as file:
             content = file.read()
         content = re.sub(GO_MOD_GO_VERSION_REGEX, f"go {new_version}", content)
-        with open(GO_MOD_FILE, "w") as file:
+        with open(go_mod_file, "w") as file:
             file.write(content)
         logging.info(
             f"bump golang version from {current_version} to {new_version}"
         )
     except FileNotFoundError:
-        logging.info(f"File not found: {GO_MOD_FILE}")
+        logging.info(f"File not found: {go_mod_file}")
 
 
-def configure_logging(level=logging.INFO):
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
+def update_go_version_in_directory(
+    new_major: str,
+    new_minor: str,
+    new_patch: str,
+    dir: str = None,
+):
+    if dir is None:
+        dir = os.getcwd()
+    for path in Path(dir).rglob(GO_MOD_FILE):
+        logging.debug(f"Found go.mod file: {path}")
+        current_version, has_patch = get_go_version_from_mod_file(path)
+        new_major_minor = f"{new_major}.{new_minor}"
+        if has_patch:
+            update_go_version_in_mod_file(
+                path,
+                current_version,
+                f"{new_major_minor}.{new_patch}",
+            )
+            continue
+        update_go_version_in_mod_file(
+            path, current_version, f"{new_major_minor}"
+        )
 
 
 def update_dockerfile_version_in_directory(
@@ -120,15 +143,7 @@ def main():
         latest_major, latest_minor, latest_patch
     )
 
-    current_version, has_patch = get_go_version_from_mod_file()
-    latest_major_minor = f"{latest_major}.{latest_minor}"
-    if has_patch:
-        update_go_version_in_mod_file(
-            current_version,
-            f"{latest_major_minor}.{latest_patch}",
-        )
-        return
-    update_go_version_in_mod_file(current_version, f"{latest_major_minor}")
+    update_go_version_in_directory(latest_major, latest_minor, latest_patch)
 
 
 if __name__ == "__main__":
