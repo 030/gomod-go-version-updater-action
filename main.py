@@ -67,23 +67,23 @@ def update_go_version_in_directory(
     new_major: str,
     new_minor: str,
     new_patch: str,
-    dir: str = None,
+    dir: str = "",
 ):
-    if dir is None:
+    if dir == "":
         dir = os.getcwd()
     for path in Path(dir).rglob(GO_MOD_FILE):
         logging.debug(f"Found go.mod file: {path}")
-        current_version, has_patch = get_go_version_from_mod_file(path)
+        current_version, has_patch = get_go_version_from_mod_file(str(path))
         new_major_minor = f"{new_major}.{new_minor}"
         if has_patch:
             update_go_version_in_mod_file(
-                path,
+                str(path),
                 current_version,
                 f"{new_major_minor}.{new_patch}",
             )
             continue
         update_go_version_in_mod_file(
-            path, current_version, f"{new_major_minor}"
+            str(path), current_version, f"{new_major_minor}"
         )
 
 
