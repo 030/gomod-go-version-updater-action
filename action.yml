@@ -153,7 +153,7 @@ runs:
         GH_TOKEN: ${{ github.token }}
     - uses: actions/setup-go@v5.3.0
       with:
-        go-version-file: "go.mod"
+        go-version: 'stable'
         cache: false
     - run: |
         git config --global url.https://${{ inputs.github-token-for-downloading-private-go-modules }}@github.com/.insteadOf https://github.com/
