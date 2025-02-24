@@ -24,3 +24,15 @@ dev = [
 
 [tool.setuptools-git-versioning]
 enabled = true
+
+[tool.ruff]
+line-length = 80
+
+[tool.pytest.ini_options]
+addopts = [
+    "test.py",
+    "--verbose",
+    "--cov=main",
+    "--capture=no",
+    "--cov-report=term-missing",
+]

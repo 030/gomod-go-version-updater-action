@@ -80,7 +80,12 @@ To install the dependencies to work on the project, you can use `pip`:
 pip install '.[dev]'
 ```
 
+To run the test suite run:
+```bash
+pytest
+```
+
 ## Test
 
-See the run steps that are defined in
-[this GitHub Workflow](.github/workflows/python.yml).
+Besides the test suite we run with `pytest` (see above) we run a more extensive set as part of quality control. See the run steps that are defined in
+[this GitHub Workflow](.github/workflows/python.yml) for details.
