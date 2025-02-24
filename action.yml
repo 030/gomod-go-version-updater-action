@@ -161,7 +161,13 @@ runs:
       if: ${{ inputs.github-token-for-downloading-private-go-modules != '' }}
     - name: go mod tidy
       run: |
-        go mod tidy
+        CURRENT_DIR=$(pwd)
+        for DIR in $(find . -name "go.mod" -exec dirname {} +); do
+          cd $DIR
+          echo "Running 'go mod tidy' in $DIR"
+          go mod tidy
+          cd $CURRENT_DIR
+        done
       shell: bash
     - name: commit and force push if needed
       run: |
