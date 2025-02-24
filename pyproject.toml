@@ -12,6 +12,9 @@ dependencies = [
 ]
 dynamic = ["version"]
 
+[project.scripts]
+gomod-go-version-updater = "main:main"
+
 [project.optional-dependencies]
 dev = [
   "coverage==7.6.12",
