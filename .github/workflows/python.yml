@@ -9,12 +9,15 @@ jobs:
         with:
           python-version: 3.9.18
           cache: "pip"
-      - name: Install PIP packages defined in requirements.txt
+      - name: Install development packages as defined in pyproject.toml
         run: |
-          pip install -r requirements.txt
+          pip install .[dev]
       - name: Run tests
         run: |
           pytest --cov=main test.py --verbose --capture=no --cov-report term-missing
       - name: Type check the code (mypy)
         run: |
           mypy main.py
+      - name: Validate pyproject.toml
+        run: |
+          validate-pyproject pyproject.toml

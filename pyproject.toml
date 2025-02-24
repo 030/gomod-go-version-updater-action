@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools", "setuptools-git-versioning"]
+build-backend = "setuptools.build_meta"
+
+[project]
+requires-python = ">=3.9"
+name = "gomod-go-version-updater-action"
+readme = "README.md"
+license = {file = "LICENSE"}
+dependencies = [
+  "requests==2.32.3"
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+dev = [
+  "coverage==7.6.12",
+  "mypy==1.15.0",
+  "mypy-extensions==1.0.0",
+  "pytest-cov==6.0.0",
+  "types-requests==2.32.0.20241016",
+  "validate-pyproject==0.23",
+]
+
+[tool.setuptools-git-versioning]
+enabled = true
