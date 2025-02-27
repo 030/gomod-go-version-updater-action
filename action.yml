@@ -103,8 +103,8 @@ runs:
         if [ -n "$(git status --porcelain)" ]; then echo "There are uncommitted changes."; else echo "No changes to commit." && exit 0; fi
 
         go_mod_file="go.mod"
-        echo "adding ${go_mod_file} file..."
-        [ -f "${go_mod_file}" ] && git add "${go_mod_file}"
+        echo "adding ${go_mod_file} file(s)..."
+        find . -name "${go_mod_file}" -exec git add {} +
 
         echo "adding nested Dockerfiles..."
         find . -name 'Dockerfile' -exec git add {} +
