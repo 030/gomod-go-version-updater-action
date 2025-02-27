@@ -20,6 +20,7 @@ runs:
     - uses: actions/checkout@v4.2.2
       with:
         ref: main
+        fetch-depth: 0
     - name: set branch name
       run: |
         echo "DEPENDENCIES_LABEL=dependencies" >> $GITHUB_ENV
@@ -32,7 +33,7 @@ runs:
         python-version: 3.9.18
     - name: Install dependencies
       run: |
-        pip install requests
+        pip install ${{ github.action_path }}
       shell: bash
     - name: Create labels
       run: |
@@ -88,7 +89,7 @@ runs:
           export GOMOD_GO_VERSION_UPDATER_ACTION_LOGGING_LEVEL=${{ inputs.gomod-go-version-updater-action-log-level }}
           echo "GOMOD_GO_VERSION_UPDATER_ACTION_LOGGING_LEVEL: ${GOMOD_GO_VERSION_UPDATER_ACTION_LOGGING_LEVEL}"
         fi
-        export GOMOD_GO_VERSION_UPDATER_ACTION_OUTPUT=$(python ${{ github.action_path }}/main.py 2>&1)
+        export GOMOD_GO_VERSION_UPDATER_ACTION_OUTPUT=$(gomod-go-version-updater 2>&1)
         echo "GOMOD_GO_VERSION_UPDATER_ACTION_OUTPUT: ${GOMOD_GO_VERSION_UPDATER_ACTION_OUTPUT}"
 
         export GOMOD_GO_VERSION_UPDATER_ACTION_NEW_GOLANG_VERSION_OUTPUT=$(echo ${GOMOD_GO_VERSION_UPDATER_ACTION_OUTPUT} |\
