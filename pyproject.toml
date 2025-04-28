@@ -19,7 +19,7 @@ gomod-go-version-updater = "main:main"
 dev = [
   "coverage==7.8.0",
   "mypy==1.15.0",
-  "mypy-extensions==1.0.0",
+  "mypy-extensions==1.1.0",
   "pytest-cov==6.1.1",
   "types-requests==2.32.0.20250328",
   "validate-pyproject==0.24.1",
