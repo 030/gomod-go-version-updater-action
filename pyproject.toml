@@ -8,7 +8,7 @@ name = "gomod-go-version-updater-action"
 readme = "README.md"
 license = {file = "LICENSE"}
 dependencies = [
-  "requests==2.32.3"
+  "requests==2.32.4"
 ]
 dynamic = ["version"]
 
