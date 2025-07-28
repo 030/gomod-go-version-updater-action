@@ -17,7 +17,7 @@ gomod-go-version-updater = "main:main"
 
 [project.optional-dependencies]
 dev = [
-  "coverage==7.9.2",
+  "coverage==7.10.1",
   "mypy==1.17.0",
   "mypy-extensions==1.1.0",
   "pytest-cov==6.2.1",
