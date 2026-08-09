@@ -1,5 +1,10 @@
 # gomod-go-version-updater-action
 
+[![GitHub release](https://img.shields.io/github/v/release/030/gomod-go-version-updater-action)](https://github.com/030/gomod-go-version-updater-action/releases)
+[![License](https://img.shields.io/github/license/030/gomod-go-version-updater-action)](LICENSE)
+
+<img src="./assets/logos/gomod-go-version-updater-action.png" width="250"></a>
+
 The rationale for this action is that
 [Dependabot cannot](https://github.com/dependabot/dependabot-core/issues/9057)
 update the go version that is defined in a `go.mod` file.
@@ -81,6 +86,7 @@ pip install '.[dev]'
 ```
 
 To run the test suite run:
+
 ```bash
 pytest
 ```
