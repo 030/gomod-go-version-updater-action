@@ -1,6 +1,6 @@
 ---
 name: MCVS-PR-validation-action
-'on':
+"on":
   pull_request:
     types:
       - edited
@@ -16,4 +16,6 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v5.0.0
+        with:
+          persist-credentials: false
       - uses: schubergphilis/mcvs-pr-validation-action@v0.2.1
