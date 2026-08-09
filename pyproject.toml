@@ -3,13 +3,11 @@ requires = ["setuptools", "setuptools-git-versioning"]
 build-backend = "setuptools.build_meta"
 
 [project]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 name = "gomod-go-version-updater-action"
 readme = "README.md"
-license = {file = "LICENSE"}
-dependencies = [
-  "requests==2.34.2"
-]
+license = { file = "LICENSE" }
+dependencies = ["requests==2.34.2"]
 dynamic = ["version"]
 
 [project.scripts]
@@ -33,9 +31,9 @@ line-length = 80
 
 [tool.pytest.ini_options]
 addopts = [
-    "test.py",
-    "--verbose",
-    "--cov=main",
-    "--capture=no",
-    "--cov-report=term-missing",
+  "test.py",
+  "--verbose",
+  "--cov=main",
+  "--capture=no",
+  "--cov-report=term-missing",
 ]
