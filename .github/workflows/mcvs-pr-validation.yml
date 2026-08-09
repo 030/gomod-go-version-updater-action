@@ -18,4 +18,5 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # yamllint disable rule:line-length
       - uses: schubergphilis/mcvs-pr-validation-action@6f153c01301ab2f92336781173b7f3a796de5f3e # v0.2.2

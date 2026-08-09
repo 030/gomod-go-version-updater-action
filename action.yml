@@ -1,3 +1,4 @@
+# yamllint disable rule:line-length
 ---
 name: gomod-go-version-updater-action
 description: gomod-go-version-updater-action
@@ -12,7 +13,7 @@ inputs:
     description: |
       Change the default INFO log level to: DEBUG, WARNING, ERROR or CRITICAL.
 runs:
-  using: "composite"
+  using: composite
   steps:
     - name: display the gh cli version
       run: gh --version
@@ -155,7 +156,7 @@ runs:
         GH_TOKEN: ${{ github.token }}
     - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
-        go-version: "stable"
+        go-version: stable
         cache: false
     - run: |
         git config --global url.https://${{ inputs.github-token-for-downloading-private-go-modules }}@github.com/.insteadOf https://github.com/

@@ -18,6 +18,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - uses: schubergphilis/mcvs-general-action@v0.5.1
+      # yamllint disable rule:line-length
+      - uses: schubergphilis/mcvs-general-action@03b7d82ed321d30353707237ce1d95a65899548c # v0.6.2
         with:
           testing-type: ${{ matrix.args.testing-type }}
