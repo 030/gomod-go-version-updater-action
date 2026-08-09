@@ -25,6 +25,7 @@ update the go version that is defined in a `go.mod` file.
    "on":
      schedule:
        - cron: "42 6 * * *"
+     workflow_dispatch:
    permissions:
      contents: write
      pull-requests: write
