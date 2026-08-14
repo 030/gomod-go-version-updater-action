@@ -23,6 +23,14 @@ dev = [
   "validate-pyproject==0.25",
 ]
 
+[tool.setuptools]
+# Declared explicitly to opt out of setuptools' flat-layout auto-discovery.
+# Auto-discovery runs `_analyse_flat_packages() or _analyse_flat_modules()`, and
+# the PEP 420 package finder picks up `assets/` as a namespace package. That
+# short-circuits the module finder, so `main.py` was omitted from the wheel and
+# the `gomod-go-version-updater` script failed with `No module named 'main'`.
+py-modules = ["main"]
+
 [tool.setuptools-git-versioning]
 enabled = true
 
