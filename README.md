@@ -66,6 +66,26 @@ update the go version that is defined in a `go.mod` file.
        extra-pr-label: something
    ```
 
+## Digest pinned Dockerfiles
+
+A `Dockerfile` that pins the image by tag *and* digest is updated in full:
+
+```dockerfile
+-FROM golang:1.26.6-alpine@sha256:3889b425...2d83 AS builder
++FROM golang:1.27.0-alpine@sha256:4c9fe601...6dbc AS builder
+```
+
+The digest of the new tag is looked up anonymously on Docker Hub. Docker
+resolves a `tag@digest` reference by digest and ignores the tag, so leaving the
+old digest in place would keep building with the previous Go version while the
+`go.mod` file already requires the new one.
+
+If that lookup fails - the registry is unreachable, the rate limit is hit, or
+the `golang` image for the new version has not been published yet, which happens
+because <https://go.dev/dl> lists a release before the official image is built -
+nothing is written at all and the run exits with an error. No pull request is
+created and the next scheduled run tries again.
+
 ## Development
 
 If you want to develop on this action, you'll probably want to use a virtual environment. Feel free to arrange that in any way you want, but it could be as simple as running
