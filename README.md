@@ -80,13 +80,18 @@ resolves a `tag@digest` reference by digest and ignores the tag, so leaving the
 old digest in place would keep building with the previous Go version while the
 `go.mod` file already requires the new one.
 
-If that lookup fails - the registry is unreachable, the rate limit is hit, or
-the `golang` image for the new version has not been published yet, which happens
-because <https://go.dev/dl> lists a release before the official image is built -
-nothing is written at all and the workflow run fails. No pull request is
-created, so a `Dockerfile` that can no longer be bumped, for instance because
-its base image variant was dropped in the new Go release, is visible instead of
-silently landing in a pull request. The next scheduled run tries again.
+A rate limited or dropped request is retried with an exponential backoff, and a
+`Retry-After` header is honoured, because the anonymous pull limit is shared
+with every other job running on the same GitHub runner IP. A `404` is not
+retried: that tag is simply not there.
+
+If the lookup still fails - the registry stays unreachable, or the `golang`
+image for the new version has not been published yet, which happens because
+<https://go.dev/dl> lists a release before the official image is built - nothing
+is written at all and the workflow run fails. No pull request is created, so a
+`Dockerfile` that can no longer be bumped, for instance because its base image
+variant was dropped in the new Go release, is visible instead of silently
+landing in a pull request. The next scheduled run tries again.
 
 ## Development
 

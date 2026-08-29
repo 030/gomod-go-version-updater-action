@@ -3,9 +3,10 @@ import logging
 import os
 import re
 import sys
+import time
 from functools import lru_cache
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 import requests
 
@@ -29,6 +30,12 @@ MANIFEST_MEDIA_TYPES = (
 )
 MANIFEST_ACCEPT = ",".join(MANIFEST_MEDIA_TYPES)
 HTTP_TIMEOUT = 30
+HTTP_RETRY_ATTEMPTS = 3
+HTTP_RETRY_BACKOFF_SECONDS = 2
+HTTP_RETRY_MAX_DELAY_SECONDS = 60
+# A shared GitHub runner IP regularly hits the anonymous Docker Hub pull rate
+# limit. These statuses say "try again", not "this tag does not exist".
+RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
 
 DIGEST_PATTERN = re.compile(r"sha256:[0-9a-f]{64}")
 
@@ -118,14 +125,59 @@ def update_go_version_in_directory(
         )
 
 
+def retry_delay(response: Optional[requests.Response], attempt: int) -> float:
+    """Seconds to wait before the next attempt, honouring `Retry-After`."""
+    if response is not None:
+        try:
+            retry_after = float(response.headers.get("Retry-After", ""))
+        except (TypeError, ValueError):
+            # `Retry-After` is absent, or holds an HTTP date rather than a
+            # number of seconds. Fall back to the backoff below.
+            pass
+        else:
+            return min(max(retry_after, 0.0), HTTP_RETRY_MAX_DELAY_SECONDS)
+    return float(HTTP_RETRY_BACKOFF_SECONDS * 2 ** (attempt - 1))
+
+
+def request_with_retries(
+    request: Callable[..., requests.Response], url: str, **kwargs
+) -> requests.Response:
+    """Call `request(url, ...)`, retrying transient registry failures.
+
+    Without this a single rate limited or dropped request aborts the whole run,
+    so `go.mod` would not be bumped either. A 404 is not transient and is
+    returned to the caller untouched.
+    """
+    for attempt in range(1, HTTP_RETRY_ATTEMPTS):
+        try:
+            response = request(url, timeout=HTTP_TIMEOUT, **kwargs)
+        except requests.RequestException as e:
+            reason, delay = str(e), retry_delay(None, attempt)
+        else:
+            if response.status_code not in RETRYABLE_STATUS_CODES:
+                return response
+            reason = f"status {response.status_code}"
+            delay = retry_delay(response, attempt)
+        logging.warning(
+            f"{url} failed with {reason}; retrying in {delay}s "
+            f"(attempt {attempt} of {HTTP_RETRY_ATTEMPTS})"
+        )
+        time.sleep(delay)
+
+    # The last attempt is made outside the loop, so that its exception
+    # propagates and its response is returned as is: the caller sees the
+    # original failure instead of a retry specific one.
+    return request(url, timeout=HTTP_TIMEOUT, **kwargs)
+
+
 def get_registry_token(repository: str) -> str:
-    response = requests.get(
+    response = request_with_retries(
+        requests.get,
         DOCKER_AUTH_URL,
         params={
             "service": DOCKER_AUTH_SERVICE,
             "scope": f"repository:{repository}:pull",
         },
-        timeout=HTTP_TIMEOUT,
     )
     response.raise_for_status()
     return response.json()["token"]
@@ -145,10 +197,10 @@ def get_golang_image_digest(tag: str) -> str:
             "Authorization": f"Bearer {token}",
             "Accept": MANIFEST_ACCEPT,
         }
-        response = requests.head(
+        response = request_with_retries(
+            requests.head,
             url,
             headers=headers,
-            timeout=HTTP_TIMEOUT,
             allow_redirects=True,
         )
         if response.status_code == 404:
@@ -160,9 +212,10 @@ def get_golang_image_digest(tag: str) -> str:
         if not DIGEST_PATTERN.fullmatch(digest):
             # Some proxies strip or mangle the header. The digest is the hash
             # of the raw manifest bytes, so fetch and compute it.
-            response = requests.get(url, headers=headers, timeout=HTTP_TIMEOUT)
+            response = request_with_retries(
+                requests.get, url, headers=headers
+            )
             response.raise_for_status()
-            digest = "sha256:" + hashlib.sha256(response.content).hexdigest()
             media_type = response.headers.get("Content-Type", "")
             media_type = media_type.split(";")[0].strip()
             if media_type not in MANIFEST_MEDIA_TYPES:
@@ -173,6 +226,7 @@ def get_golang_image_digest(tag: str) -> str:
                     f"golang:{tag} returned "
                     f"'{media_type or 'no media type'}' instead of a manifest"
                 )
+            digest = "sha256:" + hashlib.sha256(response.content).hexdigest()
     except requests.RequestException as e:
         raise DigestResolutionError(
             f"could not resolve the digest of golang:{tag}: {e}"

@@ -13,6 +13,9 @@ import requests
 from main import (
     DOCKERFILE,
     GO_MOD_FILE,
+    HTTP_RETRY_ATTEMPTS,
+    HTTP_RETRY_BACKOFF_SECONDS,
+    HTTP_RETRY_MAX_DELAY_SECONDS,
     DigestResolutionError,
     get_go_version_from_mod_file,
     get_golang_image_digest,
@@ -267,9 +270,15 @@ OLD_DIGEST = "sha256:" + "3" * 64
 NEW_DIGEST = "sha256:" + "4" * 64
 
 
-def manifest_response(status_code: int, digest: str = ""):
+def manifest_response(
+    status_code: int, digest: str = "", retry_after: str = ""
+):
     response = MagicMock(status_code=status_code)
-    response.headers = {"Docker-Content-Digest": digest} if digest else {}
+    response.headers = {}
+    if digest:
+        response.headers["Docker-Content-Digest"] = digest
+    if retry_after:
+        response.headers["Retry-After"] = retry_after
     return response
 
 
@@ -370,8 +379,9 @@ class TestGetGolangImageDigest(unittest.TestCase):
         with pytest.raises(DigestResolutionError, match="does not exist"):
             get_golang_image_digest("1.2.4-alpine")
 
+    @patch("time.sleep")
     @patch("requests.get")
-    def test_registry_error(self, mock_get):
+    def test_registry_error(self, mock_get, _mock_sleep):
         mock_get.side_effect = requests.exceptions.RequestException("boom")
 
         with pytest.raises(DigestResolutionError, match="could not resolve"):
@@ -387,6 +397,141 @@ class TestGetGolangImageDigest(unittest.TestCase):
         get_golang_image_digest("1.2.4-alpine")
 
         mock_head.assert_called_once()
+
+
+class TestDigestLookupRetries(unittest.TestCase):
+    """A blip on Docker Hub must not cost the whole run, including `go.mod`."""
+
+    def setUp(self):
+        get_golang_image_digest.cache_clear()
+
+    @patch("time.sleep")
+    @patch("requests.head")
+    @patch("requests.get")
+    def test_a_rate_limited_request_is_retried(
+        self, mock_get, mock_head, _mock_sleep
+    ):
+        mock_get.return_value = MagicMock(json=lambda: {"token": "a-token"})
+        mock_head.side_effect = [
+            manifest_response(429),
+            manifest_response(200, NEW_DIGEST),
+        ]
+
+        self.assertEqual(get_golang_image_digest("1.2.4-alpine"), NEW_DIGEST)
+
+        self.assertEqual(mock_head.call_count, 2)
+
+    @patch("time.sleep")
+    @patch("requests.head")
+    @patch("requests.get")
+    def test_a_dropped_connection_is_retried(
+        self, mock_get, mock_head, _mock_sleep
+    ):
+        mock_get.return_value = MagicMock(json=lambda: {"token": "a-token"})
+        mock_head.side_effect = [
+            requests.exceptions.ConnectionError("reset by peer"),
+            manifest_response(200, NEW_DIGEST),
+        ]
+
+        self.assertEqual(get_golang_image_digest("1.2.4-alpine"), NEW_DIGEST)
+
+        self.assertEqual(mock_head.call_count, 2)
+
+    @patch("time.sleep")
+    @patch("requests.head")
+    @patch("requests.get")
+    def test_a_persistent_registry_error_gives_up(
+        self, mock_get, mock_head, _mock_sleep
+    ):
+        mock_get.return_value = MagicMock(json=lambda: {"token": "a-token"})
+        unavailable = manifest_response(503)
+        unavailable.raise_for_status.side_effect = (
+            requests.exceptions.HTTPError("503")
+        )
+        mock_head.return_value = unavailable
+
+        with pytest.raises(DigestResolutionError, match="could not resolve"):
+            get_golang_image_digest("1.2.4-alpine")
+
+        self.assertEqual(mock_head.call_count, HTTP_RETRY_ATTEMPTS)
+
+    @patch("time.sleep")
+    @patch("requests.head")
+    @patch("requests.get")
+    def test_an_unpublished_tag_is_not_retried(
+        self, mock_get, mock_head, mock_sleep
+    ):
+        # A 404 means the image is not there, not that it might be next time.
+        mock_get.return_value = MagicMock(json=lambda: {"token": "a-token"})
+        mock_head.return_value = manifest_response(404)
+
+        with pytest.raises(DigestResolutionError, match="does not exist"):
+            get_golang_image_digest("1.2.4-alpine")
+
+        mock_head.assert_called_once()
+        mock_sleep.assert_not_called()
+
+    @patch("time.sleep")
+    @patch("requests.head")
+    @patch("requests.get")
+    def test_retry_after_is_honoured(self, mock_get, mock_head, mock_sleep):
+        mock_get.return_value = MagicMock(json=lambda: {"token": "a-token"})
+        mock_head.side_effect = [
+            manifest_response(429, retry_after="7"),
+            manifest_response(200, NEW_DIGEST),
+        ]
+
+        get_golang_image_digest("1.2.4-alpine")
+
+        mock_sleep.assert_called_once_with(7.0)
+
+    @patch("time.sleep")
+    @patch("requests.head")
+    @patch("requests.get")
+    def test_an_absurd_retry_after_is_capped(
+        self, mock_get, mock_head, mock_sleep
+    ):
+        mock_get.return_value = MagicMock(json=lambda: {"token": "a-token"})
+        mock_head.side_effect = [
+            manifest_response(429, retry_after="86400"),
+            manifest_response(200, NEW_DIGEST),
+        ]
+
+        get_golang_image_digest("1.2.4-alpine")
+
+        mock_sleep.assert_called_once_with(HTTP_RETRY_MAX_DELAY_SECONDS)
+
+    @patch("time.sleep")
+    @patch("requests.head")
+    @patch("requests.get")
+    def test_a_retry_after_date_falls_back_to_the_backoff(
+        self, mock_get, mock_head, mock_sleep
+    ):
+        mock_get.return_value = MagicMock(json=lambda: {"token": "a-token"})
+        mock_head.side_effect = [
+            manifest_response(429, retry_after="Wed, 21 Oct 2026 07:28:00 GMT"),
+            manifest_response(200, NEW_DIGEST),
+        ]
+
+        get_golang_image_digest("1.2.4-alpine")
+
+        mock_sleep.assert_called_once_with(float(HTTP_RETRY_BACKOFF_SECONDS))
+
+    @patch("time.sleep")
+    @patch("requests.head")
+    @patch("requests.get")
+    def test_a_rate_limited_token_request_is_retried(
+        self, mock_get, mock_head, _mock_sleep
+    ):
+        mock_get.side_effect = [
+            manifest_response(429),
+            MagicMock(status_code=200, json=lambda: {"token": "a-token"}),
+        ]
+        mock_head.return_value = manifest_response(200, NEW_DIGEST)
+
+        self.assertEqual(get_golang_image_digest("1.2.4-alpine"), NEW_DIGEST)
+
+        self.assertEqual(mock_get.call_count, 2)
 
 
 class TestUpdateDigestPinnedDockerfile(unittest.TestCase):
