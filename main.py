@@ -5,7 +5,7 @@ import re
 import sys
 from functools import lru_cache
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import requests
 
@@ -21,13 +21,16 @@ DOCKER_AUTH_URL = "https://auth.docker.io/token"
 DOCKER_AUTH_SERVICE = "registry.docker.io"
 DOCKER_REGISTRY_URL = "https://registry-1.docker.io"
 GOLANG_IMAGE_REPOSITORY = "library/golang"
-MANIFEST_ACCEPT = (
-    "application/vnd.oci.image.index.v1+json,"
-    "application/vnd.docker.distribution.manifest.list.v2+json,"
-    "application/vnd.oci.image.manifest.v1+json,"
-    "application/vnd.docker.distribution.manifest.v2+json"
+MANIFEST_MEDIA_TYPES = (
+    "application/vnd.oci.image.index.v1+json",
+    "application/vnd.docker.distribution.manifest.list.v2+json",
+    "application/vnd.oci.image.manifest.v1+json",
+    "application/vnd.docker.distribution.manifest.v2+json",
 )
+MANIFEST_ACCEPT = ",".join(MANIFEST_MEDIA_TYPES)
 HTTP_TIMEOUT = 30
+
+DIGEST_PATTERN = re.compile(r"sha256:[0-9a-f]{64}")
 
 # A `FROM golang:<version><variant>[@sha256:<digest>]` line. The variant, e.g.
 # `-alpine`, and an optional digest pin are captured so that they survive - or,
@@ -142,19 +145,34 @@ def get_golang_image_digest(tag: str) -> str:
             "Authorization": f"Bearer {token}",
             "Accept": MANIFEST_ACCEPT,
         }
-        response = requests.head(url, headers=headers, timeout=HTTP_TIMEOUT)
+        response = requests.head(
+            url,
+            headers=headers,
+            timeout=HTTP_TIMEOUT,
+            allow_redirects=True,
+        )
         if response.status_code == 404:
             raise DigestResolutionError(
                 f"golang:{tag} does not exist in the registry (yet)"
             )
         response.raise_for_status()
-        digest = response.headers.get("Docker-Content-Digest")
-        if not digest:
-            # Some proxies strip the header. The digest is the hash of the raw
-            # manifest bytes, so fetch and compute it.
+        digest = response.headers.get("Docker-Content-Digest", "")
+        if not DIGEST_PATTERN.fullmatch(digest):
+            # Some proxies strip or mangle the header. The digest is the hash
+            # of the raw manifest bytes, so fetch and compute it.
             response = requests.get(url, headers=headers, timeout=HTTP_TIMEOUT)
             response.raise_for_status()
             digest = "sha256:" + hashlib.sha256(response.content).hexdigest()
+            media_type = response.headers.get("Content-Type", "")
+            media_type = media_type.split(";")[0].strip()
+            if media_type not in MANIFEST_MEDIA_TYPES:
+                # A proxy or mirror that answers with a login or error page
+                # would otherwise be hashed into a valid looking but
+                # meaningless pin.
+                raise DigestResolutionError(
+                    f"golang:{tag} returned "
+                    f"'{media_type or 'no media type'}' instead of a manifest"
+                )
     except requests.RequestException as e:
         raise DigestResolutionError(
             f"could not resolve the digest of golang:{tag}: {e}"
@@ -169,23 +187,27 @@ def update_dockerfile_version_in_directory(
     # Render every Dockerfile before writing any of them, so that an
     # unresolvable digest leaves the whole repository untouched instead of
     # producing a half updated one.
-    rendered: Dict[str, str] = {}
+    rendered: Dict[str, Tuple[str, List[str]]] = {}
     for root, _, files in os.walk(os.getcwd()):
         for file in files:
             if file == DOCKERFILE:
                 dockerfile_path = os.path.join(root, file)
-                content = render_dockerfile_update(
+                update = render_dockerfile_update(
                     dockerfile_path,
                     new_major,
                     new_minor,
                     new_patch,
                 )
-                if content is not None:
-                    rendered[dockerfile_path] = content
+                if update is not None:
+                    rendered[dockerfile_path] = update
 
-    for dockerfile_path, content in rendered.items():
+    for dockerfile_path, (content, bumps) in rendered.items():
         with open(dockerfile_path, "w") as dockerfile:
             dockerfile.write(content)
+        # Only announce a bump once it is on disk: action.yml greps these lines
+        # to build the commit message and the pull request title.
+        for bump in bumps:
+            logging.info(bump)
         logging.info(
             f"Updated {dockerfile_path} to version "
             f"{new_major}.{new_minor}.{new_patch}"
@@ -194,13 +216,17 @@ def update_dockerfile_version_in_directory(
 
 def render_dockerfile_update(
     dockerfile_path: str, new_major: str, new_minor: str, new_patch: str
-) -> Optional[str]:
-    """Return the new content of a Dockerfile, or None if nothing changes."""
+) -> Optional[Tuple[str, List[str]]]:
+    """Return the new content of a Dockerfile and the bumps it contains.
+
+    Returns None when nothing changes. Nothing is written here, so that an
+    unresolvable digest can abort the run before any file is touched.
+    """
     with open(dockerfile_path, "r") as file:
         lines = file.readlines()
 
     updated_lines = []
-    changed = False
+    bumps: List[str] = []
     for line in lines:
         match = FROM_GOLANG_PATTERN.search(line)
         if not match:
@@ -224,10 +250,9 @@ def render_dockerfile_update(
         updated_lines.append(
             line[: match.start()] + image + line[match.end() :]
         )
-        changed = True
-        logging.info(f"bump golang version from {version} to {new_version}")
+        bumps.append(f"bump golang version from {version} to {new_version}")
 
-    return "".join(updated_lines) if changed else None
+    return ("".join(updated_lines), bumps) if bumps else None
 
 
 def main():

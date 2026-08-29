@@ -273,6 +273,14 @@ def manifest_response(status_code: int, digest: str = ""):
     return response
 
 
+def manifest_get_response(
+    content: bytes, media_type: str = "application/vnd.oci.image.index.v1+json"
+):
+    response = MagicMock(status_code=200, content=content)
+    response.headers = {"Content-Type": media_type}
+    return response
+
+
 def read_file(filepath: str) -> str:
     with open(filepath, "r") as file:
         return file.read()
@@ -301,7 +309,7 @@ class TestGetGolangImageDigest(unittest.TestCase):
         manifest = b'{"manifests":[]}'
         mock_get.side_effect = [
             MagicMock(json=lambda: {"token": "a-token"}),
-            MagicMock(status_code=200, content=manifest),
+            manifest_get_response(manifest),
         ]
         mock_head.return_value = manifest_response(200)
 
@@ -309,6 +317,49 @@ class TestGetGolangImageDigest(unittest.TestCase):
             get_golang_image_digest("1.2.4"),
             "sha256:" + hashlib.sha256(manifest).hexdigest(),
         )
+
+    @patch("requests.head")
+    @patch("requests.get")
+    def test_digest_computed_when_header_is_malformed(
+        self, mock_get, mock_head
+    ):
+        manifest = b'{"manifests":[]}'
+        mock_get.side_effect = [
+            MagicMock(json=lambda: {"token": "a-token"}),
+            manifest_get_response(manifest),
+        ]
+        mock_head.return_value = manifest_response(200, "not-a-digest")
+
+        self.assertEqual(
+            get_golang_image_digest("1.2.4"),
+            "sha256:" + hashlib.sha256(manifest).hexdigest(),
+        )
+
+    @patch("requests.head")
+    @patch("requests.get")
+    def test_a_non_manifest_response_is_not_hashed(self, mock_get, mock_head):
+        # A proxy that answers with a login or error page would otherwise be
+        # turned into a valid looking but meaningless pin.
+        mock_get.side_effect = [
+            MagicMock(json=lambda: {"token": "a-token"}),
+            manifest_get_response(b"<html>login</html>", "text/html"),
+        ]
+        mock_head.return_value = manifest_response(200)
+
+        with pytest.raises(
+            DigestResolutionError, match="instead of a manifest"
+        ):
+            get_golang_image_digest("1.2.4")
+
+    @patch("requests.head")
+    @patch("requests.get")
+    def test_redirects_are_followed(self, mock_get, mock_head):
+        mock_get.return_value = MagicMock(json=lambda: {"token": "a-token"})
+        mock_head.return_value = manifest_response(200, NEW_DIGEST)
+
+        get_golang_image_digest("1.2.4")
+
+        self.assertTrue(mock_head.call_args.kwargs["allow_redirects"])
 
     @patch("requests.head")
     @patch("requests.get")
@@ -392,11 +443,16 @@ class TestUpdateDigestPinnedDockerfile(unittest.TestCase):
         setup_file_with_version(DOCKERFILE, dockerfile)
         setup_file_with_version(GO_MOD_FILE, go_mod)
 
-        with pytest.raises(SystemExit):
-            main()
+        with self.assertLogs(level="INFO") as logs:
+            with pytest.raises(SystemExit):
+                main()
 
         self.assertEqual(read_file(DOCKERFILE), dockerfile)
         self.assertEqual(read_file(GO_MOD_FILE), go_mod)
+        # action.yml greps for this line to build the commit message.
+        self.assertFalse(
+            any("bump golang version" in line for line in logs.output)
+        )
 
     def test_major_minor_tag_keeps_its_format(self):
         setup_file_with_version(DOCKERFILE, "FROM golang:1.2-alpine\n")

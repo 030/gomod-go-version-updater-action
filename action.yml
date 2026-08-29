@@ -91,8 +91,21 @@ runs:
           export GOMOD_GO_VERSION_UPDATER_ACTION_LOGGING_LEVEL=${{ inputs.gomod-go-version-updater-action-log-level }}
           echo "GOMOD_GO_VERSION_UPDATER_ACTION_LOGGING_LEVEL: ${GOMOD_GO_VERSION_UPDATER_ACTION_LOGGING_LEVEL}"
         fi
-        export GOMOD_GO_VERSION_UPDATER_ACTION_OUTPUT=$(gomod-go-version-updater 2>&1)
+        set +e
+        GOMOD_GO_VERSION_UPDATER_ACTION_OUTPUT=$(gomod-go-version-updater 2>&1)
+        GOMOD_GO_VERSION_UPDATER_ACTION_STATUS=$?
+        set -e
+        export GOMOD_GO_VERSION_UPDATER_ACTION_OUTPUT
         echo "GOMOD_GO_VERSION_UPDATER_ACTION_OUTPUT: ${GOMOD_GO_VERSION_UPDATER_ACTION_OUTPUT}"
+
+        # 'export VAR=$(cmd)' returns the status of 'export', not of 'cmd', so
+        # the status has to be checked explicitly. Without this an aborted run,
+        # e.g. because a golang image has not been published yet, would end as
+        # a green 'No changes to commit'.
+        if [ "${GOMOD_GO_VERSION_UPDATER_ACTION_STATUS}" -ne 0 ]; then
+          echo "gomod-go-version-updater failed; no files have been modified"
+          exit "${GOMOD_GO_VERSION_UPDATER_ACTION_STATUS}"
+        fi
 
         export GOMOD_GO_VERSION_UPDATER_ACTION_NEW_GOLANG_VERSION_OUTPUT=$(echo ${GOMOD_GO_VERSION_UPDATER_ACTION_OUTPUT} |\
           grep "bump golang version" |\

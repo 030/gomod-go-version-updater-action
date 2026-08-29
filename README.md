@@ -83,8 +83,10 @@ old digest in place would keep building with the previous Go version while the
 If that lookup fails - the registry is unreachable, the rate limit is hit, or
 the `golang` image for the new version has not been published yet, which happens
 because <https://go.dev/dl> lists a release before the official image is built -
-nothing is written at all and the run exits with an error. No pull request is
-created and the next scheduled run tries again.
+nothing is written at all and the workflow run fails. No pull request is
+created, so a `Dockerfile` that can no longer be bumped, for instance because
+its base image variant was dropped in the new Go release, is visible instead of
+silently landing in a pull request. The next scheduled run tries again.
 
 ## Development
 
