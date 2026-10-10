@@ -62,16 +62,29 @@ def configure_logging(level=logging.INFO):
     )
 
 
-def get_latest_go_version():
+def get_latest_go_version() -> Tuple[str, str, str]:
     try:
-        response = requests.get(GO_VERSIONS_URL)
+        response = REGISTRY_SESSION.get(GO_VERSIONS_URL, timeout=HTTP_TIMEOUT)
         response.raise_for_status()
-        data = response.json()
-        match = re.match(r"go(\d+)\.(\d+)\.(\d+)", data[0]["version"])
-        return match.groups() if match else ("", "", "")
-    except requests.RequestException as e:
+        version = response.json()[0]["version"]
+    except (
+        requests.RequestException,
+        KeyError,
+        IndexError,
+        TypeError,
+        ValueError,
+    ) as e:
         logging.error(f"Error fetching data from {GO_VERSIONS_URL}: {e}")
         sys.exit(1)
+    match = re.fullmatch(r"go(\d+)\.(\d+)\.(\d+)", str(version))
+    if not match:
+        # Carrying on would write `go ..` and `golang:..` into every file.
+        logging.error(
+            f"Unexpected Go version {version!r} from {GO_VERSIONS_URL}"
+        )
+        sys.exit(1)
+    major, minor, patch = match.groups()
+    return major, minor, patch
 
 
 def get_go_version_from_mod_file(go_mod_file: str) -> Tuple[str, bool]:
