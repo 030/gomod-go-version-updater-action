@@ -1,4 +1,3 @@
-import hashlib
 import logging
 import os
 import re
@@ -210,23 +209,9 @@ def get_golang_image_digest(tag: str) -> str:
         response.raise_for_status()
         digest = response.headers.get("Docker-Content-Digest", "")
         if not DIGEST_PATTERN.fullmatch(digest):
-            # Some proxies strip or mangle the header. The digest is the hash
-            # of the raw manifest bytes, so fetch and compute it.
-            response = request_with_retries(
-                requests.get, url, headers=headers
+            raise DigestResolutionError(
+                f"golang:{tag} returned no valid Docker-Content-Digest header"
             )
-            response.raise_for_status()
-            media_type = response.headers.get("Content-Type", "")
-            media_type = media_type.split(";")[0].strip()
-            if media_type not in MANIFEST_MEDIA_TYPES:
-                # A proxy or mirror that answers with a login or error page
-                # would otherwise be hashed into a valid looking but
-                # meaningless pin.
-                raise DigestResolutionError(
-                    f"golang:{tag} returned "
-                    f"'{media_type or 'no media type'}' instead of a manifest"
-                )
-            digest = "sha256:" + hashlib.sha256(response.content).hexdigest()
     except requests.RequestException as e:
         raise DigestResolutionError(
             f"could not resolve the digest of golang:{tag}: {e}"

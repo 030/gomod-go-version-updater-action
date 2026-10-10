@@ -1,4 +1,3 @@
-import hashlib
 import logging
 import os
 import re
@@ -282,14 +281,6 @@ def manifest_response(
     return response
 
 
-def manifest_get_response(
-    content: bytes, media_type: str = "application/vnd.oci.image.index.v1+json"
-):
-    response = MagicMock(status_code=200, content=content)
-    response.headers = {"Content-Type": media_type}
-    return response
-
-
 def read_file(filepath: str) -> str:
     with open(filepath, "r") as file:
         return file.read()
@@ -314,51 +305,17 @@ class TestGetGolangImageDigest(unittest.TestCase):
 
     @patch("requests.head")
     @patch("requests.get")
-    def test_digest_computed_when_header_is_stripped(self, mock_get, mock_head):
-        manifest = b'{"manifests":[]}'
-        mock_get.side_effect = [
-            MagicMock(json=lambda: {"token": "a-token"}),
-            manifest_get_response(manifest),
-        ]
-        mock_head.return_value = manifest_response(200)
+    def test_a_missing_or_malformed_header_aborts(self, mock_get, mock_head):
+        mock_get.return_value = MagicMock(json=lambda: {"token": "a-token"})
+        for digest in ("", "not-a-digest"):
+            get_golang_image_digest.cache_clear()
+            mock_head.return_value = manifest_response(200, digest)
 
-        self.assertEqual(
-            get_golang_image_digest("1.2.4"),
-            "sha256:" + hashlib.sha256(manifest).hexdigest(),
-        )
-
-    @patch("requests.head")
-    @patch("requests.get")
-    def test_digest_computed_when_header_is_malformed(
-        self, mock_get, mock_head
-    ):
-        manifest = b'{"manifests":[]}'
-        mock_get.side_effect = [
-            MagicMock(json=lambda: {"token": "a-token"}),
-            manifest_get_response(manifest),
-        ]
-        mock_head.return_value = manifest_response(200, "not-a-digest")
-
-        self.assertEqual(
-            get_golang_image_digest("1.2.4"),
-            "sha256:" + hashlib.sha256(manifest).hexdigest(),
-        )
-
-    @patch("requests.head")
-    @patch("requests.get")
-    def test_a_non_manifest_response_is_not_hashed(self, mock_get, mock_head):
-        # A proxy that answers with a login or error page would otherwise be
-        # turned into a valid looking but meaningless pin.
-        mock_get.side_effect = [
-            MagicMock(json=lambda: {"token": "a-token"}),
-            manifest_get_response(b"<html>login</html>", "text/html"),
-        ]
-        mock_head.return_value = manifest_response(200)
-
-        with pytest.raises(
-            DigestResolutionError, match="instead of a manifest"
-        ):
-            get_golang_image_digest("1.2.4")
+            with pytest.raises(
+                DigestResolutionError,
+                match="no valid Docker-Content-Digest header",
+            ):
+                get_golang_image_digest("1.2.4")
 
     @patch("requests.head")
     @patch("requests.get")
