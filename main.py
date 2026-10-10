@@ -190,7 +190,8 @@ def get_golang_image_digest(tag: str) -> str:
             raise DigestResolutionError(
                 f"golang:{tag} returned no valid Docker-Content-Digest header"
             )
-    except requests.RequestException as e:
+    except (requests.RequestException, KeyError) as e:
+        # A KeyError means the auth response carried no token.
         raise DigestResolutionError(
             f"could not resolve the digest of golang:{tag}: {e}"
         ) from e

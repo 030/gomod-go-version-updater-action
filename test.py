@@ -347,6 +347,13 @@ class TestGetGolangImageDigest(unittest.TestCase):
         with pytest.raises(DigestResolutionError, match="could not resolve"):
             get_golang_image_digest("1.2.4-alpine")
 
+    @patch("requests.Session.get")
+    def test_a_token_response_without_a_token(self, mock_get):
+        mock_get.return_value = MagicMock(json=lambda: {})
+
+        with pytest.raises(DigestResolutionError, match="could not resolve"):
+            get_golang_image_digest("1.2.4-alpine")
+
     @patch("requests.Session.head")
     @patch("requests.Session.get")
     def test_digest_is_resolved_once_per_tag(self, mock_get, mock_head):

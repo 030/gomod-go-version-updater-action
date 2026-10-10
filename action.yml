@@ -35,7 +35,8 @@ runs:
         python-version: 3.10.20
     - name: Install dependencies
       run: |
-        pip install ${{ github.action_path }}
+        pip install --require-hashes -r ${{ github.action_path }}/requirements.txt
+        pip install --no-deps ${{ github.action_path }}
       shell: bash
     - name: Create labels
       run: |

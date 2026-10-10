@@ -15,6 +15,7 @@ jobs:
           cache: pip
       - name: Install development packages as defined in pyproject.toml
         run: |
+          pip install --require-hashes -r requirements.txt
           pip install .[dev]
       - name: Run tests
         run: |
