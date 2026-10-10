@@ -12,7 +12,11 @@ from urllib3.util import Retry
 
 DOCKERFILE = "Dockerfile"
 GO_MOD_FILE = "go.mod"
-GO_MOD_GO_VERSION_REGEX = r"go\s\d+.*"
+# Only the `go` directive itself, so that a comment such as
+# `// needs go 1.21 features` is neither parsed nor rewritten.
+GO_MOD_GO_VERSION_PATTERN = re.compile(
+    r"^go[ \t]+(\d+)\.(\d+)(?:\.(\d+))?\S*", re.MULTILINE
+)
 GO_VERSIONS_URL = "https://go.dev/dl/?mode=json"
 LOGGING_LEVEL = os.getenv(
     "GOMOD_GO_VERSION_UPDATER_ACTION_LOGGING_LEVEL", logging.INFO
@@ -77,7 +81,7 @@ def get_latest_go_version():
 def get_go_version_from_mod_file(go_mod_file: str) -> Tuple[str, bool]:
     with open(go_mod_file, "r") as file:
         content = file.read()
-        match = re.search(r"go\s(\d+)\.(\d+)\.?(\d+)?", content)
+        match = GO_MOD_GO_VERSION_PATTERN.search(content)
         if not match:
             raise ValueError(f"No Go version defined in file: {go_mod_file}")
         major, minor, patch = match.groups()
@@ -91,7 +95,7 @@ def update_go_version_in_mod_file(
     try:
         with open(go_mod_file, "r") as file:
             content = file.read()
-        content = re.sub(GO_MOD_GO_VERSION_REGEX, f"go {new_version}", content)
+        content = GO_MOD_GO_VERSION_PATTERN.sub(f"go {new_version}", content)
         with open(go_mod_file, "w") as file:
             file.write(content)
         logging.info(
