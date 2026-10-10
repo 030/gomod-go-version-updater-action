@@ -7,7 +7,7 @@ requires-python = ">=3.10"
 name = "gomod-go-version-updater-action"
 readme = "README.md"
 license = { file = "LICENSE" }
-dependencies = ["requests==2.34.2"]
+dependencies = ["requests==2.34.2", "urllib3==2.8.0"]
 dynamic = ["version"]
 
 [project.scripts]

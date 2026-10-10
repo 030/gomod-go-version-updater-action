@@ -2,12 +2,13 @@ import logging
 import os
 import re
 import sys
-import time
 from functools import lru_cache
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util import Retry
 
 DOCKERFILE = "Dockerfile"
 GO_MOD_FILE = "go.mod"
@@ -124,59 +125,36 @@ def update_go_version_in_directory(
         )
 
 
-def retry_delay(response: Optional[requests.Response], attempt: int) -> float:
-    """Seconds to wait before the next attempt, honouring `Retry-After`."""
-    if response is not None:
-        try:
-            retry_after = float(response.headers.get("Retry-After", ""))
-        except (TypeError, ValueError):
-            # `Retry-After` is absent, or holds an HTTP date rather than a
-            # number of seconds. Fall back to the backoff below.
-            pass
-        else:
-            return min(max(retry_after, 0.0), HTTP_RETRY_MAX_DELAY_SECONDS)
-    return float(HTTP_RETRY_BACKOFF_SECONDS * 2 ** (attempt - 1))
-
-
-def request_with_retries(
-    request: Callable[..., requests.Response], url: str, **kwargs
-) -> requests.Response:
-    """Call `request(url, ...)`, retrying transient registry failures.
+def registry_session() -> requests.Session:
+    """Return a session that retries transient registry failures.
 
     Without this a single rate limited or dropped request aborts the whole run,
     so `go.mod` would not be bumped either. A 404 is not transient and is
     returned to the caller untouched.
     """
-    for attempt in range(1, HTTP_RETRY_ATTEMPTS):
-        try:
-            response = request(url, timeout=HTTP_TIMEOUT, **kwargs)
-        except requests.RequestException as e:
-            reason, delay = str(e), retry_delay(None, attempt)
-        else:
-            if response.status_code not in RETRYABLE_STATUS_CODES:
-                return response
-            reason = f"status {response.status_code}"
-            delay = retry_delay(response, attempt)
-        logging.warning(
-            f"{url} failed with {reason}; retrying in {delay}s "
-            f"(attempt {attempt} of {HTTP_RETRY_ATTEMPTS})"
-        )
-        time.sleep(delay)
+    retries = Retry(
+        total=HTTP_RETRY_ATTEMPTS - 1,
+        backoff_factor=HTTP_RETRY_BACKOFF_SECONDS,
+        status_forcelist=RETRYABLE_STATUS_CODES,
+        retry_after_max=HTTP_RETRY_MAX_DELAY_SECONDS,
+        raise_on_status=False,
+    )
+    session = requests.Session()
+    session.mount("https://", HTTPAdapter(max_retries=retries))
+    return session
 
-    # The last attempt is made outside the loop, so that its exception
-    # propagates and its response is returned as is: the caller sees the
-    # original failure instead of a retry specific one.
-    return request(url, timeout=HTTP_TIMEOUT, **kwargs)
+
+REGISTRY_SESSION = registry_session()
 
 
 def get_registry_token(repository: str) -> str:
-    response = request_with_retries(
-        requests.get,
+    response = REGISTRY_SESSION.get(
         DOCKER_AUTH_URL,
         params={
             "service": DOCKER_AUTH_SERVICE,
             "scope": f"repository:{repository}:pull",
         },
+        timeout=HTTP_TIMEOUT,
     )
     response.raise_for_status()
     return response.json()["token"]
@@ -196,11 +174,11 @@ def get_golang_image_digest(tag: str) -> str:
             "Authorization": f"Bearer {token}",
             "Accept": MANIFEST_ACCEPT,
         }
-        response = request_with_retries(
-            requests.head,
+        response = REGISTRY_SESSION.head(
             url,
             headers=headers,
             allow_redirects=True,
+            timeout=HTTP_TIMEOUT,
         )
         if response.status_code == 404:
             raise DigestResolutionError(
