@@ -19,6 +19,6 @@ jobs:
         with:
           persist-credentials: false
       # yamllint disable rule:line-length
-      - uses: schubergphilis/mcvs-general-action@03b7d82ed321d30353707237ce1d95a65899548c # v0.6.2
+      - uses: schubergphilis/mcvs-general-action@5a7badc4df54a0f496bcaa033a840fbd22a1cf00 # v0.7.2
         with:
           testing-type: ${{ matrix.args.testing-type }}
