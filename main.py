@@ -15,7 +15,7 @@ GO_MOD_FILE = "go.mod"
 GO_MOD_GO_VERSION_REGEX = r"go\s\d+.*"
 GO_VERSIONS_URL = "https://go.dev/dl/?mode=json"
 LOGGING_LEVEL = os.getenv(
-    "GOMOD_GO_VERSION_UPDATER_ACTION_LOGGING_LEVEL", logging.INFO
+    "GOMOD_GO_VERSION_UPDATER_ACTION_LOGGING_LEVEL", "INFO"
 )
 
 DOCKER_AUTH_URL = "https://auth.docker.io/token"
@@ -54,7 +54,14 @@ class DigestResolutionError(Exception):
     """Raised when the digest of a golang image tag cannot be determined."""
 
 
-def configure_logging(level=logging.INFO):
+def configure_logging(level: str = "INFO"):
+    # basicConfig only accepts upper case names, e.g. DEBUG and not debug.
+    level = level.upper()
+    if level not in logging.getLevelNamesMapping():
+        sys.exit(
+            f"Invalid log level {level!r}; "
+            "use DEBUG, INFO, WARNING, ERROR or CRITICAL"
+        )
     logging.basicConfig(
         level=level,
         format="%(asctime)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s",
