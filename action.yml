@@ -18,11 +18,24 @@ runs:
     - name: display the gh cli version
       run: gh --version
       shell: bash
+    - name: determine the default branch
+      id: default-branch
+      run: |
+        # The event payload of e.g. 'schedule' does not contain the repository.
+        if [ -z "${DEFAULT_BRANCH}" ]; then
+          DEFAULT_BRANCH=$(gh repo view "${GITHUB_REPOSITORY}" --json defaultBranchRef --jq .defaultBranchRef.name)
+        fi
+        echo "default branch: ${DEFAULT_BRANCH}"
+        echo "name=${DEFAULT_BRANCH}" >> "$GITHUB_OUTPUT"
+      shell: bash
+      env:
+        DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        GH_TOKEN: ${{ github.token }}
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         fetch-depth: 0
         persist-credentials: true # Otherwise the git fetch will fail later on
-        ref: main
+        ref: ${{ steps.default-branch.outputs.name }}
     - name: set branch name
       run: |
         echo "DEPENDENCIES_LABEL=dependencies" >> $GITHUB_ENV
@@ -75,6 +88,7 @@ runs:
       env:
         GH_TOKEN: ${{ github.token }}
     - name: update go version and push branch
+      id: update
       run: |
         git fetch -p -P
 
@@ -131,10 +145,18 @@ runs:
         git config user.email 41898282+github-actions[bot]@users.noreply.github.com
 
         echo "git commit..."
-        if ! git commit -m "${GOMOD_GO_VERSION_UPDATER_ACTION_MESSAGE}"; then git commit --amend --no-edit; fi
+        if ! git commit -m "${GOMOD_GO_VERSION_UPDATER_ACTION_MESSAGE}"; then
+          # Only amend the action's own commit, never e.g. the default branch's.
+          if [[ "$(git log -1 --format='%ae %s')" != "41898282+github-actions[bot]@users.noreply.github.com build(deps): "* ]]; then
+            echo "Nothing to commit and HEAD is not the action's own commit."
+            exit 0
+          fi
+          git commit --amend --no-edit
+        fi
 
         echo "git push..."
         git push origin ${GOMOD_GO_VERSION_UPDATER_ACTION_BRANCH} -f
+        echo "committed=true" >> "$GITHUB_OUTPUT"
 
         if gh pr list --json title | jq -e '.[] | select(.title | test("build\\(deps\\): bump golang version from .* to .*"))'; then
           echo "PR exists already. Updating the 'title' and 'description'..."
@@ -160,13 +182,14 @@ runs:
         done
 
         gh pr create \
-          --base main \
+          --base "${DEFAULT_BRANCH}" \
           --body "${GOMOD_GO_VERSION_UPDATER_ACTION_MESSAGE}" \
           --fill \
           --head "${GOMOD_GO_VERSION_UPDATER_ACTION_BRANCH}" \
           "${label_args[@]}"
       shell: bash
       env:
+        DEFAULT_BRANCH: ${{ steps.default-branch.outputs.name }}
         GH_TOKEN: ${{ github.token }}
     - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
@@ -177,6 +200,8 @@ runs:
       shell: bash
       if: ${{ inputs.github-token-for-downloading-private-go-modules != '' }}
     - name: go mod tidy
+      # Only tidy on top of the commit the update step made in this run.
+      if: ${{ steps.update.outputs.committed == 'true' }}
       run: |
         CURRENT_DIR=$(pwd)
         for DIR in $(find . -name "go.mod" -exec dirname {} +); do
@@ -187,8 +212,16 @@ runs:
         done
       shell: bash
     - name: commit and force push if needed
+      if: ${{ steps.update.outputs.committed == 'true' }}
       run: |
         if [ -n "$(git status --porcelain)" ]; then echo "There are uncommitted changes."; else echo "No changes to commit." && exit 0; fi
+
+        # Never amend and force push a commit that is not the action's own.
+        if [ "$(git rev-parse --abbrev-ref HEAD)" != "${GOMOD_GO_VERSION_UPDATER_ACTION_BRANCH}" ] ||
+          [[ "$(git log -1 --format='%ae %s')" != "41898282+github-actions[bot]@users.noreply.github.com build(deps): "* ]]; then
+          echo "::warning::HEAD is not the action's own commit on '${GOMOD_GO_VERSION_UPDATER_ACTION_BRANCH}'. Skipping the amend."
+          exit 0
+        fi
 
         git add .
         git commit --amend --no-edit
