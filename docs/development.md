@@ -12,11 +12,18 @@ Don't forget to activate the virtual environment next:
 source .venv/bin/activate
 ```
 
-To install the dependencies to work on the project, you can use `pip`. Install the hash pinned runtime dependencies first, as CI does:
+To install the dependencies to work on the project, you can use `pip`. Install the hash pinned runtime and development dependencies first, then the project itself, as CI does:
 
 ```bash
-pip install --require-hashes -r requirements.txt
-pip install '.[dev]'
+pip install --require-hashes -r requirements-dev.txt
+pip install --no-deps .
+```
+
+After changing a dependency in `pyproject.toml`, recompile both lock files:
+
+```bash
+uv pip compile pyproject.toml --universal --python-version 3.11 --generate-hashes -o requirements.txt
+uv pip compile pyproject.toml --extra dev --universal --python-version 3.11 --generate-hashes -o requirements-dev.txt
 ```
 
 To run the test suite run:
