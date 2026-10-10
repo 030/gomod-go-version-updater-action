@@ -2,8 +2,12 @@ import logging
 import os
 import re
 import tempfile
+import threading
 import unittest
+from contextlib import contextmanager
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Dict, List, Tuple
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -12,9 +16,14 @@ import requests
 from main import (
     DOCKERFILE,
     GO_MOD_FILE,
+    HTTP_RETRY_ATTEMPTS,
+    HTTP_RETRY_MAX_DELAY_SECONDS,
+    DigestResolutionError,
     get_go_version_from_mod_file,
+    get_golang_image_digest,
     get_latest_go_version,
     main,
+    registry_session,
     update_go_version_in_directory,
     update_go_version_in_mod_file,
 )
@@ -258,6 +267,270 @@ class TestUpdateGoVersionInDirectory(unittest.TestCase):
                 self.assertEqual(result, ("1.2.4", True))
             else:
                 self.assertEqual(result, ("1.2", False))
+
+
+OLD_DIGEST = "sha256:" + "3" * 64
+NEW_DIGEST = "sha256:" + "4" * 64
+
+
+def manifest_response(
+    status_code: int, digest: str = "", retry_after: str = ""
+):
+    response = MagicMock(status_code=status_code)
+    response.headers = {}
+    if digest:
+        response.headers["Docker-Content-Digest"] = digest
+    if retry_after:
+        response.headers["Retry-After"] = retry_after
+    return response
+
+
+def read_file(filepath: str) -> str:
+    with open(filepath, "r") as file:
+        return file.read()
+
+
+class TestGetGolangImageDigest(unittest.TestCase):
+    def setUp(self):
+        get_golang_image_digest.cache_clear()
+
+    @patch("requests.Session.head")
+    @patch("requests.Session.get")
+    def test_digest_from_header(self, mock_get, mock_head):
+        mock_get.return_value = MagicMock(json=lambda: {"token": "a-token"})
+        mock_head.return_value = manifest_response(200, NEW_DIGEST)
+
+        self.assertEqual(get_golang_image_digest("1.2.4-alpine"), NEW_DIGEST)
+
+        url = mock_head.call_args.args[0]
+        self.assertTrue(url.endswith("/library/golang/manifests/1.2.4-alpine"))
+        headers = mock_head.call_args.kwargs["headers"]
+        self.assertEqual(headers["Authorization"], "Bearer a-token")
+
+    @patch("requests.Session.head")
+    @patch("requests.Session.get")
+    def test_a_missing_or_malformed_header_aborts(self, mock_get, mock_head):
+        mock_get.return_value = MagicMock(json=lambda: {"token": "a-token"})
+        for digest in ("", "not-a-digest"):
+            get_golang_image_digest.cache_clear()
+            mock_head.return_value = manifest_response(200, digest)
+
+            with pytest.raises(
+                DigestResolutionError,
+                match="no valid Docker-Content-Digest header",
+            ):
+                get_golang_image_digest("1.2.4")
+
+    @patch("requests.Session.head")
+    @patch("requests.Session.get")
+    def test_redirects_are_followed(self, mock_get, mock_head):
+        mock_get.return_value = MagicMock(json=lambda: {"token": "a-token"})
+        mock_head.return_value = manifest_response(200, NEW_DIGEST)
+
+        get_golang_image_digest("1.2.4")
+
+        self.assertTrue(mock_head.call_args.kwargs["allow_redirects"])
+
+    @patch("requests.Session.head")
+    @patch("requests.Session.get")
+    def test_unpublished_tag(self, mock_get, mock_head):
+        mock_get.return_value = MagicMock(json=lambda: {"token": "a-token"})
+        mock_head.return_value = manifest_response(404)
+
+        with pytest.raises(DigestResolutionError, match="does not exist"):
+            get_golang_image_digest("1.2.4-alpine")
+
+    @patch("requests.Session.get")
+    def test_registry_error(self, mock_get):
+        mock_get.side_effect = requests.exceptions.RequestException("boom")
+
+        with pytest.raises(DigestResolutionError, match="could not resolve"):
+            get_golang_image_digest("1.2.4-alpine")
+
+    @patch("requests.Session.get")
+    def test_a_token_response_without_a_token(self, mock_get):
+        mock_get.return_value = MagicMock(json=lambda: {})
+
+        with pytest.raises(DigestResolutionError, match="could not resolve"):
+            get_golang_image_digest("1.2.4-alpine")
+
+    @patch("requests.Session.head")
+    @patch("requests.Session.get")
+    def test_digest_is_resolved_once_per_tag(self, mock_get, mock_head):
+        mock_get.return_value = MagicMock(json=lambda: {"token": "a-token"})
+        mock_head.return_value = manifest_response(200, NEW_DIGEST)
+
+        get_golang_image_digest("1.2.4-alpine")
+        get_golang_image_digest("1.2.4-alpine")
+
+        mock_head.assert_called_once()
+
+
+@contextmanager
+def scripted_registry(*replies: Tuple[int, Dict[str, str]]):
+    """Serve `replies` in order on localhost, repeating the last one."""
+    calls: List[str] = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def reply(self):
+            calls.append(self.command)
+            status, headers = replies[min(len(calls), len(replies)) - 1]
+            self.send_response(status)
+            for name, value in headers.items():
+                self.send_header(name, value)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        do_GET = do_HEAD = reply
+
+        def log_message(self, *args):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        yield f"http://127.0.0.1:{server.server_port}/", calls
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def local_registry_session() -> requests.Session:
+    # The registry is only reached over https; mount the same retrying adapter
+    # for the plain http test server.
+    session = registry_session()
+    session.mount("http://", session.get_adapter("https://"))
+    return session
+
+
+@patch("time.sleep")
+class TestRegistryRetries(unittest.TestCase):
+    """A blip on Docker Hub must not cost the whole run, including `go.mod`."""
+
+    def test_a_rate_limited_request_is_retried(self, mock_sleep):
+        with scripted_registry((429, {"Retry-After": "7"}), (200, {})) as (
+            url,
+            calls,
+        ):
+            response = local_registry_session().head(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(calls, ["HEAD", "HEAD"])
+        mock_sleep.assert_called_once_with(7.0)
+
+    def test_an_absurd_retry_after_is_capped(self, mock_sleep):
+        with scripted_registry((429, {"Retry-After": "86400"}), (200, {})) as (
+            url,
+            _calls,
+        ):
+            local_registry_session().get(url)
+
+        mock_sleep.assert_called_once_with(HTTP_RETRY_MAX_DELAY_SECONDS)
+
+    def test_a_persistent_registry_error_gives_up(self, _mock_sleep):
+        with scripted_registry((503, {})) as (url, calls):
+            response = local_registry_session().get(url)
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(len(calls), HTTP_RETRY_ATTEMPTS)
+
+    def test_an_unpublished_tag_is_not_retried(self, mock_sleep):
+        # A 404 means the image is not there, not that it might be next time.
+        with scripted_registry((404, {})) as (url, calls):
+            response = local_registry_session().head(url)
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(calls, ["HEAD"])
+        mock_sleep.assert_not_called()
+
+
+class TestUpdateDigestPinnedDockerfile(unittest.TestCase):
+    latest_major, latest_minor, latest_patch = get_latest_go_version()
+
+    def setUp(self):
+        get_golang_image_digest.cache_clear()
+
+    def tearDown(self):
+        cleanup_files(DOCKERFILE, GO_MOD_FILE)
+
+    @property
+    def latest(self) -> str:
+        return f"{self.latest_major}.{self.latest_minor}.{self.latest_patch}"
+
+    @patch("requests.Session.head")
+    @patch("main.get_registry_token", return_value="a-token")
+    def test_tag_and_digest_are_bumped(self, _mock_token, mock_head):
+        mock_head.return_value = manifest_response(200, NEW_DIGEST)
+        setup_file_with_version(
+            DOCKERFILE,
+            f"FROM golang:1.2.3-alpine@{OLD_DIGEST} AS builder\n",
+        )
+
+        main()
+
+        self.assertEqual(
+            read_file(DOCKERFILE),
+            f"FROM golang:{self.latest}-alpine@{NEW_DIGEST} AS builder\n",
+        )
+        self.assertTrue(
+            mock_head.call_args.args[0].endswith(f"{self.latest}-alpine")
+        )
+
+    @patch("requests.Session.head")
+    @patch("main.get_registry_token", return_value="a-token")
+    def test_up_to_date_line_is_not_resolved(self, _mock_token, mock_head):
+        content = f"FROM golang:{self.latest}-alpine@{OLD_DIGEST}\n"
+        setup_file_with_version(DOCKERFILE, content)
+
+        main()
+
+        self.assertEqual(read_file(DOCKERFILE), content)
+        mock_head.assert_not_called()
+
+    @patch("requests.Session.head")
+    @patch("main.get_registry_token", return_value="a-token")
+    def test_nothing_is_written_when_the_digest_is_unresolvable(
+        self, _mock_token, mock_head
+    ):
+        mock_head.return_value = manifest_response(404)
+        dockerfile = f"FROM golang:1.2.3-alpine@{OLD_DIGEST}\n"
+        go_mod = "module example\n\ngo 1.2.3\n"
+        setup_file_with_version(DOCKERFILE, dockerfile)
+        setup_file_with_version(GO_MOD_FILE, go_mod)
+
+        with self.assertLogs(level="INFO") as logs:
+            with pytest.raises(SystemExit):
+                main()
+
+        self.assertEqual(read_file(DOCKERFILE), dockerfile)
+        self.assertEqual(read_file(GO_MOD_FILE), go_mod)
+        # action.yml greps for this line to build the commit message.
+        self.assertFalse(
+            any("bump golang version" in line for line in logs.output)
+        )
+
+    def test_major_minor_tag_keeps_its_format(self):
+        setup_file_with_version(DOCKERFILE, "FROM golang:1.2-alpine\n")
+
+        main()
+
+        self.assertEqual(
+            read_file(DOCKERFILE),
+            f"FROM golang:{self.latest_major}.{self.latest_minor}-alpine\n",
+        )
+
+    def test_platform_flag_is_supported(self):
+        setup_file_with_version(
+            DOCKERFILE,
+            "FROM --platform=$BUILDPLATFORM golang:1.2.3 AS builder\n",
+        )
+
+        main()
+
+        self.assertEqual(
+            read_file(DOCKERFILE),
+            f"FROM --platform=$BUILDPLATFORM golang:{self.latest} AS builder\n",
+        )
 
 
 if __name__ == "__main__":
