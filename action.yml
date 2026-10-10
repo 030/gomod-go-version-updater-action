@@ -104,7 +104,7 @@ runs:
         # e.g. because a golang image has not been published yet, would end as
         # a green 'No changes to commit'.
         if [ "${GOMOD_GO_VERSION_UPDATER_ACTION_STATUS}" -ne 0 ]; then
-          echo "gomod-go-version-updater failed; no files have been modified"
+          echo "gomod-go-version-updater failed"
           exit "${GOMOD_GO_VERSION_UPDATER_ACTION_STATUS}"
         fi
 

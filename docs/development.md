@@ -12,9 +12,10 @@ Don't forget to activate the virtual environment next:
 source .venv/bin/activate
 ```
 
-To install the dependencies to work on the project, you can use `pip`:
+To install the dependencies to work on the project, you can use `pip`. Install the hash pinned runtime dependencies first, as CI does:
 
 ```bash
+pip install --require-hashes -r requirements.txt
 pip install '.[dev]'
 ```
 
