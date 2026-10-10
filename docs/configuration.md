@@ -16,20 +16,20 @@ Optional settings for the
    ```
 1. Optional: if private go modules have to be downloaded:
    ```yml
-   - uses: 030/gomod-go-version-updater-action@v0.1.6
+   - uses: 030/gomod-go-version-updater-action@d212eb593e210eca20f3c42cbcbf3cdeb9dd3a54 # v0.3.8
      with:
        github-token-for-downloading-private-go-modules: ${{ secrets.GITHUB_TOKEN }}
    ```
 1. Optional: set the log level to `DEBUG`, `WARNING`, `ERROR` or `CRITICAL`
    (default: INFO):
    ```yml
-   - uses: 030/gomod-go-version-updater-action@v0.1.6
+   - uses: 030/gomod-go-version-updater-action@d212eb593e210eca20f3c42cbcbf3cdeb9dd3a54 # v0.3.8
      with:
        gomod-go-version-updater-action-log-level: DEBUG
    ```
 1. Optional: add an extra label to the PR that will be created:
    ```yml
-   - uses: 030/gomod-go-version-updater-action@v0.1.6
+   - uses: 030/gomod-go-version-updater-action@d212eb593e210eca20f3c42cbcbf3cdeb9dd3a54 # v0.3.8
      with:
        extra-pr-label: something
    ```
