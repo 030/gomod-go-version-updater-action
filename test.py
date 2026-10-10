@@ -215,6 +215,15 @@ class TestUpdateGoVersionInModFile(unittest.TestCase):
             content = file.read()
             self.assertIn("go 1.4", content)
 
+    def test_update_go_version_in_mod_file_already_current(self):
+        mod_file = tempfile.NamedTemporaryFile()
+        mod_file.write(b"module example\n\ngo 1.2.3\n")
+        mod_file.flush()
+
+        with patch("logging.info") as mock_logging:
+            update_go_version_in_mod_file(mod_file.name, "1.2.3", "1.2.3")
+            mock_logging.assert_not_called()
+
     def test_update_go_version_in_mod_file_missing_file(self):
         with patch("logging.info") as mock_logging:
             update_go_version_in_mod_file("nonexistent_file", "1.2", "1.4")
