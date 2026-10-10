@@ -30,6 +30,8 @@ from main import (
 
 GO_VERSIONS_URL = "https://mocked-url.com"
 TEST_NESTED_DOCKERFILE = "test/testdata/" + DOCKERFILE
+# What the faked go.dev reports as the latest Go release.
+LATEST_GO_VERSION = ("1", "25", "3")
 logging.basicConfig(level=logging.INFO)
 
 
@@ -66,22 +68,30 @@ def setup_file_with_version_and_test(self: any, filepath: str):
     )
 
 
-def cleanup_files(*filepaths):
-    for filepath in filepaths:
-        try:
-            if os.path.exists(filepath):
-                os.remove(filepath)
-                logging.info(f"Removed file: {filepath}")
-        except Exception as e:
-            pytest.fail(f"Error removing file {filepath}: {e}")
+class MainTestCase(unittest.TestCase):
+    """Run `main()` offline, in a temporary directory instead of the checkout.
+
+    `main()` rewrites every go.mod and Dockerfile below the working directory
+    and asks go.dev for the latest Go version, so both are faked here.
+    """
+
+    latest_major, latest_minor, latest_patch = LATEST_GO_VERSION
+
+    def setUp(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        self.addCleanup(os.chdir, os.getcwd())
+        os.chdir(temp_dir.name)
+
+        go_versions = patch("requests.get")
+        go_versions.start().return_value = MagicMock(
+            json=lambda: [{"version": "go" + ".".join(LATEST_GO_VERSION)}],
+            status_code=200,
+        )
+        self.addCleanup(go_versions.stop)
 
 
-class TestUpdateGolangVersionInGoModFile(unittest.TestCase):
-    latest_major, latest_minor, latest_patch = get_latest_go_version()
-
-    def tearDown(self):
-        cleanup_files(GO_MOD_FILE)
-
+class TestUpdateGolangVersionInGoModFile(MainTestCase):
     def test_update_golang_version_major_minor_patch(self):
         setup_file_with_version(
             GO_MOD_FILE,
@@ -137,13 +147,7 @@ class TestGetLatestGoVersion(unittest.TestCase):
             get_latest_go_version()
 
 
-class TestUpdateGolangVersionInDockerfile(unittest.TestCase):
-    latest_major, latest_minor, latest_patch = get_latest_go_version()
-
-    def tearDown(self):
-        cleanup_files(DOCKERFILE)
-        cleanup_files(TEST_NESTED_DOCKERFILE)
-
+class TestUpdateGolangVersionInDockerfile(MainTestCase):
     def test_update_version_in_dockerfile_major_minor_patch(self):
         setup_file_with_version_and_test(self, DOCKERFILE)
 
@@ -444,14 +448,10 @@ class TestRegistryRetries(unittest.TestCase):
         mock_sleep.assert_not_called()
 
 
-class TestUpdateDigestPinnedDockerfile(unittest.TestCase):
-    latest_major, latest_minor, latest_patch = get_latest_go_version()
-
+class TestUpdateDigestPinnedDockerfile(MainTestCase):
     def setUp(self):
+        super().setUp()
         get_golang_image_digest.cache_clear()
-
-    def tearDown(self):
-        cleanup_files(DOCKERFILE, GO_MOD_FILE)
 
     @property
     def latest(self) -> str:
