@@ -170,6 +170,16 @@ class TestGetGoVersionFromModFile(unittest.TestCase):
         result = get_go_version_from_mod_file(mod_file.name)
         self.assertEqual(result, ("1.2", False))
 
+    def test_get_go_version_ignores_comments(self):
+        mod_file = tempfile.NamedTemporaryFile()
+        mod_file.write(
+            b"module example\n\n// needs go 1.21 features\ngo 1.22.1\n"
+        )
+        mod_file.flush()
+
+        result = get_go_version_from_mod_file(mod_file.name)
+        self.assertEqual(result, ("1.22.1", True))
+
     def test_get_go_version_missing_file(self):
         self.assertRaises(
             FileNotFoundError, get_go_version_from_mod_file, "nonexistent_file"
@@ -214,6 +224,23 @@ class TestUpdateGoVersionInModFile(unittest.TestCase):
         with open(mod_file.name, "r") as file:
             content = file.read()
             self.assertIn("go 1.4", content)
+
+    def test_update_go_version_in_mod_file_ignores_other_lines(self):
+        mod_file = tempfile.NamedTemporaryFile()
+        mod_file.write(
+            b"module example\n\n// needs go 1.21 features\ngo 1.22.1\n\n"
+            b"toolchain go1.22.1\n"
+        )
+        mod_file.flush()
+
+        update_go_version_in_mod_file(mod_file.name, "1.22.1", "1.25.3")
+
+        with open(mod_file.name, "r") as file:
+            self.assertEqual(
+                file.read(),
+                "module example\n\n// needs go 1.21 features\ngo 1.25.3\n\n"
+                "toolchain go1.22.1\n",
+            )
 
     def test_update_go_version_in_mod_file_missing_file(self):
         with patch("logging.info") as mock_logging:
