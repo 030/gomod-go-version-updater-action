@@ -88,8 +88,8 @@ runs:
         python --version
         python3 --version
 
-        if [ -n "${{ inputs.gomod-go-version-updater-action-log-level }}" ]; then
-          export GOMOD_GO_VERSION_UPDATER_ACTION_LOGGING_LEVEL=${{ inputs.gomod-go-version-updater-action-log-level }}
+        if [ -n "${LOG_LEVEL}" ]; then
+          export GOMOD_GO_VERSION_UPDATER_ACTION_LOGGING_LEVEL="${LOG_LEVEL}"
           echo "GOMOD_GO_VERSION_UPDATER_ACTION_LOGGING_LEVEL: ${GOMOD_GO_VERSION_UPDATER_ACTION_LOGGING_LEVEL}"
         fi
         set +e
@@ -143,8 +143,8 @@ runs:
         fi
 
         labels=("${DEPENDENCIES_LABEL}" "${GO_LABEL}" "${GOMOD_GO_VERSION_UPDATER_LABEL}")
-        if [ -n "${{ inputs.extra-pr-label }}" ]; then
-          labels+=("${{ inputs.extra-pr-label }}")
+        if [ -n "${EXTRA_PR_LABEL}" ]; then
+          labels+=("${EXTRA_PR_LABEL}")
         fi
         echo "Labels:"
         for label in "${labels[@]}"; do
@@ -165,17 +165,22 @@ runs:
           "${label_args[@]}"
       shell: bash
       env:
+        EXTRA_PR_LABEL: ${{ inputs.extra-pr-label }}
         GH_TOKEN: ${{ github.token }}
+        LOG_LEVEL: ${{ inputs.gomod-go-version-updater-action-log-level }}
     - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
         go-version: stable
         cache: false
-    - run: |
-        git config --global url.https://${{ inputs.github-token-for-downloading-private-go-modules }}@github.com/.insteadOf https://github.com/
-      shell: bash
-      if: ${{ inputs.github-token-for-downloading-private-go-modules != '' }}
     - name: go mod tidy
       run: |
+        # Scope the URL rewrite to this step by passing it through the
+        # environment, so the token is not written to any git config file.
+        if [ -n "${PRIVATE_GO_MODULES_TOKEN}" ]; then
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0="url.https://${PRIVATE_GO_MODULES_TOKEN}@github.com/.insteadOf"
+          export GIT_CONFIG_VALUE_0="https://github.com/"
+        fi
         CURRENT_DIR=$(pwd)
         for DIR in $(find . -name "go.mod" -exec dirname {} +); do
           cd $DIR
@@ -184,6 +189,8 @@ runs:
           cd $CURRENT_DIR
         done
       shell: bash
+      env:
+        PRIVATE_GO_MODULES_TOKEN: ${{ inputs.github-token-for-downloading-private-go-modules }}
     - name: commit and force push if needed
       run: |
         if [ -n "$(git status --porcelain)" ]; then echo "There are uncommitted changes."; else echo "No changes to commit." && exit 0; fi
