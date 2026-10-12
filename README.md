@@ -33,7 +33,7 @@ update the go version that is defined in a `go.mod` file.
      gomod-go-version-updater-action:
        runs-on: ubuntu-22.04
        steps:
-         - uses: 030/gomod-go-version-updater-action@v0.1.6
+         - uses: 030/gomod-go-version-updater-action@d212eb593e210eca20f3c42cbcbf3cdeb9dd3a54 # v0.3.8
    ```
 
 ## Documentation

@@ -19,6 +19,7 @@ from main import (
     HTTP_RETRY_ATTEMPTS,
     HTTP_RETRY_MAX_DELAY_SECONDS,
     DigestResolutionError,
+    configure_logging,
     get_go_version_from_mod_file,
     get_golang_image_digest,
     get_latest_go_version,
@@ -110,6 +111,20 @@ class TestUpdateGolangVersionInGoModFile(unittest.TestCase):
             ValueError, match="No Go version defined in file: .*go.mod"
         ):
             main()
+
+
+class TestConfigureLogging(unittest.TestCase):
+    @patch("logging.basicConfig")
+    def test_lower_case_level(self, mock_basic_config):
+        configure_logging("debug")
+        self.assertEqual(mock_basic_config.call_args.kwargs["level"], "DEBUG")
+
+    @patch("logging.basicConfig")
+    def test_invalid_level(self, mock_basic_config):
+        with self.assertRaises(SystemExit) as e:
+            configure_logging("verbose")
+        self.assertIn("Invalid log level 'VERBOSE'", str(e.exception.code))
+        mock_basic_config.assert_not_called()
 
 
 class TestGetLatestGoVersion(unittest.TestCase):
