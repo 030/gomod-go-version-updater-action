@@ -99,6 +99,11 @@ def get_go_version_from_mod_file(go_mod_file: str) -> Tuple[str, bool]:
 def update_go_version_in_mod_file(
     go_mod_file: str, current_version: str, new_version: str
 ):
+    # action.yml takes the pull request title from the first bump line, so an
+    # up-to-date go.mod must not log a "from X to X" bump.
+    if current_version == new_version:
+        logging.debug(f"{go_mod_file} is already at {new_version}")
+        return
     try:
         with open(go_mod_file, "r") as file:
             content = file.read()
