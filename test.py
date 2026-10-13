@@ -18,6 +18,7 @@ from main import (
     GO_MOD_FILE,
     HTTP_RETRY_ATTEMPTS,
     HTTP_RETRY_MAX_DELAY_SECONDS,
+    HTTP_TIMEOUT,
     DigestResolutionError,
     configure_logging,
     get_go_version_from_mod_file,
@@ -128,28 +129,71 @@ class TestConfigureLogging(unittest.TestCase):
 
 
 class TestGetLatestGoVersion(unittest.TestCase):
-    @patch("requests.get")
+    @patch("requests.Session.get")
     def test_successful_fetch(self, mock_get):
         mock_get.return_value = MagicMock(
             json=lambda: [{"version": "go1.18.3"}], status_code=200
         )
         major, minor, patch = get_latest_go_version()
         self.assertEqual((major, minor, patch), ("1", "18", "3"))
+        self.assertEqual(mock_get.call_args.kwargs["timeout"], HTTP_TIMEOUT)
 
-    @patch("requests.get")
+    @patch("requests.Session.get")
     def test_non_matching_version_format(self, mock_get):
         mock_get.return_value = MagicMock(
             json=lambda: [{"version": "invalid_version"}], status_code=200
         )
-        self.assertEqual(get_latest_go_version(), ("", "", ""))
+        with self.assertRaises(SystemExit) as e:
+            get_latest_go_version()
+        self.assertEqual(e.exception.code, 1)
 
-    @patch("requests.get")
+    @patch("requests.Session.get")
     def test_http_error(self, mock_get):
         mock_get.side_effect = requests.exceptions.RequestException(
             "Network error"
         )
         with self.assertRaises(SystemExit):
             get_latest_go_version()
+
+    @patch("requests.Session.get")
+    def test_timeout(self, mock_get):
+        mock_get.side_effect = requests.exceptions.Timeout("timed out")
+        with self.assertRaises(SystemExit) as e:
+            get_latest_go_version()
+        self.assertEqual(e.exception.code, 1)
+
+    @patch("requests.Session.get")
+    def test_malformed_response(self, mock_get):
+        for body in ([], [{}], {"version": "go1.18.3"}, ["go1.18.3"]):
+            with self.subTest(body=body):
+                mock_get.return_value = MagicMock(
+                    json=lambda body=body: body, status_code=200
+                )
+                with self.assertRaises(SystemExit) as e:
+                    get_latest_go_version()
+                self.assertEqual(e.exception.code, 1)
+
+    @patch("requests.Session.get")
+    def test_invalid_json(self, mock_get):
+        mock_get.return_value = MagicMock(status_code=200)
+        mock_get.return_value.json.side_effect = ValueError("no JSON")
+        with self.assertRaises(SystemExit) as e:
+            get_latest_go_version()
+        self.assertEqual(e.exception.code, 1)
+
+    @patch("main.update_go_version_in_directory")
+    @patch("main.update_dockerfile_version_in_directory")
+    @patch("requests.Session.get")
+    def test_main_leaves_files_untouched(
+        self, mock_get, mock_dockerfile, mock_go_mod
+    ):
+        mock_get.return_value = MagicMock(
+            json=lambda: [{"version": "invalid_version"}], status_code=200
+        )
+        with self.assertRaises(SystemExit):
+            main()
+        mock_dockerfile.assert_not_called()
+        mock_go_mod.assert_not_called()
 
 
 class TestUpdateGolangVersionInDockerfile(unittest.TestCase):
