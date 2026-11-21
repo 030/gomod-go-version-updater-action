@@ -20,6 +20,6 @@ jobs:
         with:
           persist-credentials: false
       # yamllint disable-line rule:line-length
-      - uses: schubergphilis/mcvs-general-action@96298a5c109d08a0dfd9047963e01e2441421a3f # v0.11.1
+      - uses: schubergphilis/mcvs-general-action@25aa45c3c39349238f329e3ac3c31b3a2c85cd05 # v0.11.2
         with:
           auto-release: "true"
